@@ -1,39 +1,72 @@
-# Wiring notes
+# Wiring & Interconnection Guide
 
-Board: generic **ESP32-CAM (AI-Thinker-class, OV2640/OV3660)**. The camera and
-onboard flash pins are the documented AI-Thinker reference map (in
-`hardware/firmware/config/pins.h`). Verify against your module's silkscreen
-before flashing — if it differs, switch the profile to `BOARD_OTHER` and copy
-camera pins from the datasheet.
+Hardware: **AI-Thinker ESP32-CAM (OV2640)**, **0.96" SSD1306 OLED (I2C)**, **Push button**, **White LED + 220Ω resistor**, **10kΩ pull-up resistor**, **5V 2A DC supply**, and **FTDI programmer**.
 
-## Power & programming
+---
 
-- ESP32-CAM `5V` / `GND` from a 5 V supply with headroom for Wi-Fi + flash LED
-  (weak USB ports brown out — this causes camera init failures).
-- FTDI: TX↔RX crossed, GND common, **3.3 V logic**. Hold `GPIO0` → `GND` while
-  powering on to enter flash mode; remove and reset to run.
+## 1. Complete Pinout & Breadboard Connections
 
-## Camera / flash (fixed on this board — do not rewire)
+| Component Pin | ESP32-CAM Pin | Purpose / Function | Critical Notes |
+|---------------|---------------|--------------------|----------------|
+| **OLED SDA** | `GPIO14` | I2C Data line | Shared with SD slot (do not insert SD card) |
+| **OLED SCL** | `GPIO15` | I2C Clock line | Shared with SD slot |
+| **OLED VCC** | `3.3V` (or 5V) | Power supply | Verify OLED board regulator rating |
+| **OLED GND** | `GND` | Common ground | Connected to common ground rail |
+| **Button Leg 1** | `GPIO13` | Trigger input | Internal pull-up active; or wire 10kΩ to 3.3V |
+| **Button Leg 2** | `GND` | Ground contact | When pressed, pulls GPIO13 to LOW |
+| **External White LED** (Optional) | `GPIO4` via 220Ω | Auxiliary strobe | Anode -> 220Ω -> GPIO4; Cathode -> GND |
+| **FTDI TX** | `GPIO3` (U0R) | ESP32 UART RX | FTDI TX sends data to ESP32 RX |
+| **FTDI RX** | `GPIO1` (U0T) | ESP32 UART TX | ESP32 TX sends logs to FTDI RX |
+| **FTDI GND** | `GND` | Reference ground | **Must share common ground with ESP32** |
+| **FTDI VCC** | *DO NOT CONNECT* | Power | Power ESP32 from dedicated 5V supply |
+| **ESP32 5V** | External +5V | DC Power | Connect to external 5V 2A power supply rail |
+| **ESP32 GND** | External GND | DC Ground | Connect to external 5V power ground rail |
+| **ESP32 GPIO0** | `GND` (Flash mode) | Boot mode | Connect to GND to flash; disconnect to run |
 
-Handled on-PCB. Onboard white flash LED = **GPIO4** (driven by firmware during capture).
+---
 
-## Peripherals you wire
+## 2. Wiring Diagram
 
-These are the only free GPIOs on the AI-Thinker ESP32-CAM. **GPIO 12–15 are
-shared with the microSD slot** — do not use a microSD card if you use them here.
+```
+                 +-------------------+
+                 |    FTDI USB-UART  |
+                 |  [TX]  [RX]  [GND]|
+                 +---|------|-----|--+
+                     |      |     |
+            +--------+      |     |
+            |   +-----------+     |
+            |   |                 |
+     (U0R) (U0T)                (GND)
+    +----------------------------------+
+    |           ESP32-CAM              |
+    |                                  |
+    | [5V]  [GND]   [14]  [15]   [13]  |
+    +---|-----|------|-----|------|----+
+        |     |      |     |      |
+ +5V ---+     |      |     |      +-----+ [Push Button] -----+
+              |      |     |            |                    |
+ GND ---------+------+-----+------------+                    |
+              |      |     |            |                    |
+              |     (SDA) (SCL)         +---[ 10k Resistor]--+ (To 3.3V)
+              |      |     |
+              |   +--|-----|--------+
+              |   | [SDA] [SCL]     |
+              +---| [GND]           |
+                  | [VCC] (3.3V)    |
+                  | SSD1306 0.96"   |
+                  +-----------------+
+```
 
-| Signal | Default GPIO | Notes |
-|--------|-------------|-------|
-| OLED SDA (SSD1306, I2C) | GPIO14 | 0.96" OLED, 3.3 V, addr `0x3C` (some modules `0x3D`) |
-| OLED SCL | GPIO15 | |
-| Push button | GPIO13 | Other side to GND; firmware uses internal pull-up (no external 10 kΩ needed) |
+---
 
-If you prefer the listed 10 kΩ as an external pull-up, wire it button→3.3 V and
-change `pinMode` to `INPUT` in `button/button.cpp`. Reassign any pin in `pins.h`.
+## 3. Flashing Sequence (FTDI)
 
-## After wiring
-
-1. `cp hardware/firmware/config/wifi_secrets.h.example hardware/firmware/config/wifi_secrets.h`
-   and fill in Wi-Fi + backend IP.
-2. Confirm the OLED address with an I2C scan if `BOOTING…` never appears.
-3. Flash (`pio run -t upload`) and watch `pio device monitor` at 115200.
+1. Disconnect 5V power.
+2. Jumper `GPIO0` directly to `GND`.
+3. Set FTDI jumper switch to **3.3V logic level** (prevent 5V damage to GPIO1/GPIO3).
+4. Connect FTDI USB to computer.
+5. Apply 5V power to the external power rail.
+6. Press the ESP32 `RST` button momentarily to latch into UART bootloader mode.
+7. Run PlatformIO flash: `pio run -t upload`.
+8. Once finished, disconnect `GPIO0` from `GND`.
+9. Press `RST` once more to boot into normal operating mode.
