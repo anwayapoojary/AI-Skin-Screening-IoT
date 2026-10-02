@@ -11,11 +11,20 @@ async function parse<T>(res: Response): Promise<T> {
 export const api = {
   health: () => fetch(`${API}/health`).then((r) => parse(r)),
   patients: {
-    list: () => fetch(`${API}/patients`).then((r) => parse<Patient[]>(r)),
+    list: (q?: string) => {
+      const qs = q ? `?q=${encodeURIComponent(q)}` : "";
+      return fetch(`${API}/patients${qs}`).then((r) => parse<Patient[]>(r));
+    },
     get: (id: number) => fetch(`${API}/patients/${id}`).then((r) => parse<Patient>(r)),
-    create: (body: { patient_code: string; display_name: string; notes?: string }) =>
+    create: (body: { display_name: string; notes?: string }) =>
       fetch(`${API}/patients`, {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      }).then((r) => parse<Patient>(r)),
+    update: (id: number, body: { display_name?: string; notes?: string }) =>
+      fetch(`${API}/patients/${id}`, {
+        method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       }).then((r) => parse<Patient>(r)),
@@ -55,13 +64,25 @@ export const api = {
       fetch(`${API}/reports/${screeningId}`).then((r) => parse<Report>(r)),
   },
   reminders: {
-    list: () => fetch(`${API}/reminders`).then((r) => parse<Reminder[]>(r)),
+    list: (patientId?: number) => {
+      const q = patientId != null ? `?patient_id=${patientId}` : "";
+      return fetch(`${API}/reminders${q}`).then((r) => parse<Reminder[]>(r));
+    },
+    get: (id: number) => fetch(`${API}/reminders/${id}`).then((r) => parse<Reminder>(r)),
     create: (body: ReminderCreate) =>
       fetch(`${API}/reminders`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       }).then((r) => parse<Reminder>(r)),
+    update: (id: number, body: Partial<ReminderCreate> & { is_active?: boolean }) =>
+      fetch(`${API}/reminders/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      }).then((r) => parse<Reminder>(r)),
+    delete: (id: number) =>
+      fetch(`${API}/reminders/${id}`, { method: "DELETE" }).then((r) => parse(r)),
   },
 };
 
@@ -70,6 +91,7 @@ export type Patient = {
   patient_code: string;
   display_name: string;
   notes: string | null;
+  created_at: string | null;
 };
 
 export type DeviceRow = {
@@ -109,10 +131,12 @@ export type Screening = {
   prediction: string | null;
   confidence: number | null;
   abstained: boolean;
+  model_name: string | null;
   model_version: string | null;
   preprocessing_version: string | null;
   image_quality_status: string | null;
   device_firmware_version: string | null;
+  prediction_timestamp: string | null;
   created_at: string | null;
   disclaimer: string;
 };
@@ -126,6 +150,7 @@ export type Report = {
   prediction: string | null;
   confidence: number | null;
   abstained: boolean;
+  model_name: string | null;
   model_version: string | null;
   firmware_version: string | null;
   image_quality_status: string | null;
@@ -142,7 +167,9 @@ export type Reminder = {
   reminder_time: string;
   start_date: string;
   end_date: string | null;
+  is_active: boolean;
   notes: string | null;
+  created_at: string | null;
 };
 
-export type ReminderCreate = Omit<Reminder, "id">;
+export type ReminderCreate = Omit<Reminder, "id" | "is_active" | "created_at">;

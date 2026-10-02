@@ -1,5 +1,7 @@
 import { NavLink, Route, Routes } from "react-router-dom";
 import About from "./pages/About";
+import AIAnalysis from "./pages/AIAnalysis";
+import CaptureUpload from "./pages/CaptureUpload";
 import Dashboard from "./pages/Dashboard";
 import DeviceStatusPage from "./pages/DeviceStatusPage";
 import Devices from "./pages/Devices";
@@ -17,17 +19,17 @@ export default function App() {
   return (
     <div className="layout">
       <nav>
-        <h1>Screening device</h1>
+        <h1>AI Skin Screening</h1>
         <NavLink to="/">Dashboard</NavLink>
         <NavLink to="/patients">Patients</NavLink>
-        <NavLink to="/screening/new">New screening</NavLink>
-        <NavLink to="/capture">Image capture</NavLink>
-        <NavLink to="/analysis">AI analysis</NavLink>
+        <NavLink to="/capture">Capture / Upload</NavLink>
+        <NavLink to="/screening/new">New Screening</NavLink>
+        <NavLink to="/analysis">AI Analysis</NavLink>
+        <NavLink to="/history">History</NavLink>
         <NavLink to="/reports/latest">Reports</NavLink>
-        <NavLink to="/devices">Device connection</NavLink>
-        <NavLink to="/devices/live">Live device status</NavLink>
-        <NavLink to="/history">Screening history</NavLink>
         <NavLink to="/reminders">Reminders</NavLink>
+        <NavLink to="/devices">Device</NavLink>
+        <NavLink to="/devices/live">Device Status</NavLink>
         <NavLink to="/settings">Settings</NavLink>
         <NavLink to="/about">About</NavLink>
       </nav>
@@ -36,9 +38,9 @@ export default function App() {
           <Route path="/" element={<Dashboard />} />
           <Route path="/patients" element={<Patients />} />
           <Route path="/patients/:id" element={<PatientProfile />} />
+          <Route path="/capture" element={<CaptureUpload />} />
           <Route path="/screening/new" element={<NewScreening />} />
-          <Route path="/capture" element={<NewScreening />} />
-          <Route path="/analysis" element={<NewScreening />} />
+          <Route path="/analysis" element={<AIAnalysis />} />
           <Route path="/screening/:id" element={<ResultPage />} />
           <Route path="/reports/latest" element={<ReportsIndex />} />
           <Route path="/reports/:id" element={<ReportPage />} />
