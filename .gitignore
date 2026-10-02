@@ -38,7 +38,7 @@ Thumbs.db
 # Firmware build artifacts
 hardware/firmware/build/
 hardware/firmware/.pio/
-hardware/firmware/wifi_secrets.h
+**/wifi_secrets.h
 
 # ML model weights and datasets (large / licensed — keep out of git)
 ai/weights/

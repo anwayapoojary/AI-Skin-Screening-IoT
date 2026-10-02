@@ -17,6 +17,7 @@
 #include "display.h"
 #include "flash_led.h"
 #include "sensors.h"
+#include "state_machine.h"
 
 static bool s_camera_ok = false;
 static unsigned long s_last_status = 0;
@@ -29,7 +30,7 @@ static const char *camera_status_str()
 
 static void push_status(const char *button_state)
 {
-    comm_send_status("READY", s_display_state, camera_status_str(),
+    comm_send_status(sm_get_state_str(), s_display_state, camera_status_str(),
                      "off", button_state ? button_state : "idle");
 }
 
@@ -38,10 +39,12 @@ static void push_status(const char *button_state)
 static void handle_capture(const char *request_id)
 {
     if (!s_camera_ok) {
+        sm_transition(DEVICE_STATE_ERROR);
         comm_send_error("E_CAMERA", "camera not initialised");
         return;
     }
-    s_display_state = "CAPTURING...";
+    sm_transition(DEVICE_STATE_CAPTURING);
+    s_display_state = sm_get_display_str();
     display_show(s_display_state);
     flash_set(1);
     delay(120);  // let exposure settle with the flash on
@@ -50,16 +53,19 @@ static void handle_capture(const char *request_id)
 
     if (!fb || fb->len == 0) {
         if (fb) camera_return_frame(fb);
+        sm_transition(DEVICE_STATE_ERROR);
         comm_send_error("E_CAPTURE", "frame grab failed");
-        s_display_state = "ERROR";
+        s_display_state = sm_get_display_str();
         display_show(s_display_state);
         return;
     }
 
-    s_display_state = "PROCESSING...";
+    sm_transition(DEVICE_STATE_TRANSFERRING);
+    s_display_state = sm_get_display_str();
     display_show(s_display_state);
     comm_send_image_b64(request_id, fb->buf, fb->len, "image/jpeg");
     camera_return_frame(fb);
+    sm_transition(DEVICE_STATE_READY);
 }
 
 static void handle_display(const char *display_state)
@@ -72,6 +78,7 @@ static void handle_display(const char *display_state)
 
 static void handle_result(const char *prediction, int abstained)
 {
+    sm_transition(DEVICE_STATE_READY);
     s_display_state = "RESULT AVAILABLE";
     display_show(abstained ? "RECHECK" : "RESULT AVAILABLE");
     (void)prediction;  // full result stays in the web app, not the OLED
@@ -85,6 +92,7 @@ void setup()
     delay(200);
     Serial.println("\n[BOOT] AI health screening device");
 
+    sm_init();
     sensors_init();
 
     if (display_init() != 0) {
@@ -100,13 +108,16 @@ void setup()
 
     comm_set_handlers(handle_capture, handle_display, handle_result);
 
+    sm_transition(DEVICE_STATE_CONNECTING);
     if (comm_wifi_connect() == 0) {
         comm_ws_begin();
+        sm_transition(DEVICE_STATE_READY);
     } else {
+        sm_transition(DEVICE_STATE_ERROR);
         display_show("WIFI ERROR");
     }
 
-    s_display_state = "READY";
+    s_display_state = sm_get_display_str();
     display_show(s_display_state);
 }
 

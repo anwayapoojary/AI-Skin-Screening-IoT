@@ -1,6 +1,4 @@
-/* OV2640/OV3660 camera via the esp32-camera driver (bundled with arduino-esp32).
- * Pins come from config/pins.h. No pin is guessed here. */
-
+#include <Arduino.h>
 #include "camera.h"
 #include "pins.h"
 #include "device_config.h"
