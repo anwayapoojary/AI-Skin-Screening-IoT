@@ -4,8 +4,12 @@ from pydantic import BaseModel, Field
 
 
 class PatientCreate(BaseModel):
-    patient_code: str = Field(min_length=1, max_length=64)
     display_name: str = Field(min_length=1, max_length=128)
+    notes: str | None = None
+
+
+class PatientUpdate(BaseModel):
+    display_name: str | None = Field(default=None, min_length=1, max_length=128)
     notes: str | None = None
 
 
@@ -58,10 +62,12 @@ class ScreeningOut(BaseModel):
     prediction: str | None
     confidence: float | None
     abstained: bool
+    model_name: str | None = None
     model_version: str | None
     preprocessing_version: str | None
     image_quality_status: str | None
     device_firmware_version: str | None
+    prediction_timestamp: str | None = None
     created_at: datetime | None = None
     disclaimer: str = "Screening indication only. Not a confirmed medical diagnosis or certificate."
 
@@ -84,6 +90,17 @@ class ReminderCreate(BaseModel):
     notes: str | None = None
 
 
+class ReminderUpdate(BaseModel):
+    medicine: str | None = Field(default=None, min_length=1, max_length=128)
+    dosage_text: str | None = Field(default=None, min_length=1, max_length=128)
+    frequency: str | None = Field(default=None, min_length=1, max_length=64)
+    reminder_time: str | None = Field(default=None, min_length=1, max_length=16)
+    start_date: str | None = Field(default=None, min_length=1, max_length=16)
+    end_date: str | None = None
+    is_active: bool | None = None
+    notes: str | None = None
+
+
 class ReminderOut(BaseModel):
     id: int
     patient_id: int
@@ -93,7 +110,9 @@ class ReminderOut(BaseModel):
     reminder_time: str
     start_date: str
     end_date: str | None
+    is_active: bool
     notes: str | None
+    created_at: datetime | None = None
 
     model_config = {"from_attributes": True}
 
@@ -108,8 +127,9 @@ class ReportOut(BaseModel):
     prediction: str | None
     confidence: float | None
     abstained: bool
+    model_name: str | None = None
     model_version: str | None
     firmware_version: str | None
     image_quality_status: str | None
-    title: str = "Health Screening Report"
+    title: str = "AI Health Screening Report"
     disclaimer: str

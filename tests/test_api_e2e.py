@@ -11,7 +11,7 @@ client = TestClient(app)
 def _patient() -> int:
     db = SessionLocal()
     try:
-        row = db.query(Patient).filter(Patient.patient_code == "E2E-001").one_or_none()
+        row = db.query(Patient).filter(Patient.display_name == "E2E Synthetic").one_or_none()
         if row:
             return row.id
         row = Patient(patient_code="E2E-001", display_name="E2E Synthetic", notes="test")

@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     device_mode: str = "simulation"
     device_id: str = "DEVICE_001"
     protocol_version: str = "1.0"
+    device_token: str = ""  # set in env for device auth on /ws/device
     ai_mode: str = "mock"
 
     # Real skin-lesion model (used only when ai_mode == "real").

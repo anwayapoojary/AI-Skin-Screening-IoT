@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from backend.app.db.session import get_db
 from backend.app.deps import auth_ready
 from backend.app.models.entities import MedicationReminder, Patient
-from backend.app.schemas.api import ReminderCreate, ReminderOut
+from backend.app.schemas.api import ReminderCreate, ReminderOut, ReminderUpdate
 
 router = APIRouter(dependencies=[Depends(auth_ready)])
 
@@ -26,3 +26,34 @@ def create_reminder(body: ReminderCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(row)
     return row
+
+
+@router.get("/{reminder_id}", response_model=ReminderOut)
+def get_reminder(reminder_id: int, db: Session = Depends(get_db)):
+    row = db.get(MedicationReminder, reminder_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="Reminder not found")
+    return row
+
+
+@router.put("/{reminder_id}", response_model=ReminderOut)
+def update_reminder(reminder_id: int, body: ReminderUpdate, db: Session = Depends(get_db)):
+    row = db.get(MedicationReminder, reminder_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="Reminder not found")
+    update_data = body.model_dump(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(row, field, value)
+    db.commit()
+    db.refresh(row)
+    return row
+
+
+@router.delete("/{reminder_id}")
+def delete_reminder(reminder_id: int, db: Session = Depends(get_db)):
+    row = db.get(MedicationReminder, reminder_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="Reminder not found")
+    db.delete(row)
+    db.commit()
+    return {"ok": True, "deleted_id": reminder_id}

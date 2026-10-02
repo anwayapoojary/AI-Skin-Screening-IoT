@@ -6,6 +6,8 @@ DISCLAIMER = (
     "diagnosis, or prescription. Interpret only with qualified clinical oversight."
 )
 
+REPORT_TITLE = "AI Health Screening Report"
+
 
 def build_report(screening: Screening) -> ReportOut:
     patient = screening.patient
@@ -20,8 +22,10 @@ def build_report(screening: Screening) -> ReportOut:
         prediction=screening.prediction,
         confidence=screening.confidence,
         abstained=screening.abstained,
+        model_name=screening.model_name,
         model_version=screening.model_version,
         firmware_version=screening.device_firmware_version,
         image_quality_status=screening.image_quality_status,
+        title=REPORT_TITLE,
         disclaimer=DISCLAIMER,
     )

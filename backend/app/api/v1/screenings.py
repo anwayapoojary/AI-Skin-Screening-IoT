@@ -56,13 +56,16 @@ async def repredict(screening_id: int, db: Session = Depends(get_db)):
     with open(row.image_path, "rb") as fh:
         data = fh.read()
     quality, mime = validate_image_bytes(data)
-    pred = get_model().predict(data, image_quality_status=quality)
+    model = get_model()
+    pred = model.predict(data, image_quality_status=quality)
     row.prediction = pred.prediction
     row.confidence = pred.confidence
     row.abstained = pred.abstained
+    row.model_name = type(model).__name__
     row.model_version = pred.model_version
     row.preprocessing_version = pred.preprocessing_version
     row.image_quality_status = pred.image_quality_status
+    row.prediction_timestamp = pred.timestamp
     db.commit()
     db.refresh(row)
     return row
@@ -103,12 +106,13 @@ async def _run_screening(
         mime_hint = None
 
     quality, mime = validate_image_bytes(image_bytes, mime_hint)
+    model = get_model()
     if quality != "ok":
         path = None
-        pred = get_model().predict(image_bytes or b"", image_quality_status="invalid")
+        pred = model.predict(image_bytes or b"", image_quality_status="invalid")
     else:
         path = save_image(image_bytes, mime)
-        pred = get_model().predict(image_bytes, image_quality_status="ok")
+        pred = model.predict(image_bytes, image_quality_status="ok")
 
     samples = await gw.sensors()
     for s in samples:
@@ -130,10 +134,12 @@ async def _run_screening(
         prediction=pred.prediction,
         confidence=pred.confidence,
         abstained=pred.abstained,
+        model_name=type(model).__name__,
         model_version=pred.model_version,
         preprocessing_version=pred.preprocessing_version,
         image_quality_status=pred.image_quality_status,
         device_firmware_version=status.firmware_version,
+        prediction_timestamp=pred.timestamp,
     )
     db.add(row)
     persist_gateway_events(db, gw, device_row.id)

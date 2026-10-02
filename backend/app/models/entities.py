@@ -47,10 +47,12 @@ class Screening(Base):
     prediction: Mapped[str | None] = mapped_column(String(128), nullable=True)
     confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
     abstained: Mapped[bool] = mapped_column(Boolean, default=False)
+    model_name: Mapped[str | None] = mapped_column(String(64), nullable=True)
     model_version: Mapped[str | None] = mapped_column(String(64), nullable=True)
     preprocessing_version: Mapped[str | None] = mapped_column(String(64), nullable=True)
     image_quality_status: Mapped[str | None] = mapped_column(String(32), nullable=True)
     device_firmware_version: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    prediction_timestamp: Mapped[str | None] = mapped_column(String(64), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     patient: Mapped[Patient] = relationship(back_populates="screenings")
@@ -94,6 +96,7 @@ class MedicationReminder(Base):
     reminder_time: Mapped[str] = mapped_column(String(16))
     start_date: Mapped[str] = mapped_column(String(16))
     end_date: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 

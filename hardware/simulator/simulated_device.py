@@ -6,7 +6,7 @@ from hardware.drivers.device import CapturedImage, DeviceStatus, HealthScreening
 from hardware.drivers.sensors import HumiditySensor, OtherHealthSensor, TemperatureSensor
 from hardware.protocols.constants import PROTOCOL_VERSION
 from hardware.protocols.schema import utc_now_iso
-from hardware.simulator.sample_image import SAMPLE_PNG
+from hardware.simulator.sample_image import get_sample_png
 from hardware.simulator.state_machine import DeviceStateMachine
 
 
@@ -80,7 +80,7 @@ class SimulatedDevice(HealthScreeningDevice):
         self.sm.transition("TRANSFERRING")
         self.flash_on = False
         self.sm.display_state = "PROCESSING..."
-        return CapturedImage(content=SAMPLE_PNG, mime_type="image/png", source="device")
+        return CapturedImage(content=get_sample_png(), mime_type="image/png", source="device")
 
     async def read_sensors(self) -> list[SensorSample]:
         self._touch()
