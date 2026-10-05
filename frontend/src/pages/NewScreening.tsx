@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { api, type Patient, type Screening } from "../api";
 
 export default function NewScreening() {
@@ -27,7 +27,7 @@ export default function NewScreening() {
     if (pid === "") return;
     setBusy(true);
     setErr(null);
-    setPhase("Connecting device → capture → transfer → AI analysis…");
+    setPhase("Step 03 / 04: Hardware triggering → optical transfer → AI neural evaluation…");
     try {
       await api.devices.connect("DEVICE_001");
       const s = await api.screenings.runDevice(Number(pid));
@@ -44,7 +44,7 @@ export default function NewScreening() {
     if (pid === "" || !file) return;
     setBusy(true);
     setErr(null);
-    setPhase("Uploading image → quality check → AI analysis…");
+    setPhase("Step 03 / 04: Frame upload → optical quality gate validation → AI inference…");
     try {
       const s = await api.screenings.upload(Number(pid), file);
       go(s);
@@ -56,58 +56,156 @@ export default function NewScreening() {
     }
   };
 
+  const selectedPatient = patients.find((p) => p.id === Number(pid));
+
   return (
     <div>
-      <h2>New Screening</h2>
-      <p className="info">
-        Workflow: select patient → choose capture method → quality check → AI analysis → result.
+      <div className="editorial-kicker">Clinical Procedure · Standardized Examination Flow</div>
+
+      <h1 className="editorial-title">
+        New<br />Screening
+      </h1>
+
+      <p className="editorial-subtitle">
+        Follow the standardized 4-phase clinical protocol to examine a patient skin lesion.
       </p>
-      {err && <p className="error">{err}</p>}
-      {phase && <p className="info">{phase}</p>}
+
+      {err && <div className="notice-error">{err}</div>}
+      {phase && (
+        <div className="notice-editorial">
+          <div className="notice-header">
+            <span>Clinical Pipeline Status</span>
+            <span>PROCESSING</span>
+          </div>
+          <p>{phase}</p>
+        </div>
+      )}
+
+      <hr className="rule-heavy" />
 
       {patients.length === 0 ? (
         <div className="empty-state">
-          <h3>No patients registered</h3>
-          <p>Register a patient on the <a href="/patients">Patients page</a> first.</p>
+          <h3>No Patients Enrolled</h3>
+          <p>Please register a patient before starting a screening examination.</p>
+          <Link to="/patients">
+            <button>Register Patient First →</button>
+          </Link>
         </div>
       ) : (
-        <>
-          <div className="card">
-            <h3>1. Select patient</h3>
-            <div className="form-row">
-              <select value={pid} onChange={(e) => setPid(Number(e.target.value))} aria-label="Select patient">
+        <div style={{ display: "flex", flexDirection: "column", gap: "2.5rem" }}>
+          {/* Step 01: Patient Association */}
+          <div className="card-heavy" style={{ padding: "2rem", margin: 0 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+              <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.85rem", fontWeight: 700 }}>
+                01 PATIENT IDENTIFICATION
+              </div>
+              <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.75rem", color: "var(--color-muted-text)" }}>
+                PHASE 1 OF 4
+              </span>
+            </div>
+            <hr style={{ margin: "1rem 0" }} />
+            <p style={{ color: "var(--color-muted-text)", fontSize: "0.95rem", marginBottom: "1rem" }}>
+              Select the subject from the active registry to associate clinical telemetry and results.
+            </p>
+
+            <div style={{ display: "flex", gap: "1rem", alignItems: "center", flexWrap: "wrap" }}>
+              <select
+                value={pid}
+                onChange={(e) => setPid(Number(e.target.value))}
+                aria-label="Select Patient"
+                style={{ maxWidth: "400px" }}
+              >
                 {patients.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.patient_code} — {p.display_name}
                   </option>
                 ))}
               </select>
+
+              {selectedPatient && (
+                <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.85rem" }}>
+                  Selected ID: <strong>{selectedPatient.patient_code}</strong>
+                </div>
+              )}
             </div>
           </div>
 
-          <div className="card">
-            <h3>2a. Device capture (simulator)</h3>
-            <p style={{ fontSize: "0.85rem", color: "var(--color-text-subtle)" }}>
-              Virtual ESP32-CAM: OLED states, flash pulse, simulated image.
+          {/* Step 02: Image Acquisition */}
+          <div className="card-heavy" style={{ padding: "2rem", margin: 0 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+              <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.85rem", fontWeight: 700 }}>
+                02 IMAGE ACQUISITION
+              </div>
+              <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.75rem", color: "var(--color-muted-text)" }}>
+                PHASE 2 OF 4
+              </span>
+            </div>
+            <hr style={{ margin: "1rem 0" }} />
+            <p style={{ color: "var(--color-muted-text)", fontSize: "0.95rem", marginBottom: "1.5rem" }}>
+              Capture directly through the ESP32-CAM optical sensor or supply an existing photograph.
             </p>
-            <button disabled={busy} onClick={runDevice}>
-              {busy ? "Processing…" : "Capture from virtual camera"}
-            </button>
-          </div>
 
-          <div className="card">
-            <h3>2b. Upload image (development)</h3>
-            <p style={{ fontSize: "0.85rem", color: "var(--color-text-subtle)" }}>
-              Upload a skin image from your computer. Same AI pipeline.
-            </p>
-            <div className="form-row">
-              <input type="file" accept="image/png,image/jpeg" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
-              <button disabled={busy || !file} onClick={runUpload}>
-                {busy ? "Analyzing…" : "Analyze uploaded image"}
-              </button>
+            <div className="grid-2">
+              <div className="card" style={{ padding: "1.5rem", margin: 0 }}>
+                <h4 style={{ marginBottom: "0.5rem" }}>Hardware Device Trigger</h4>
+                <p style={{ fontSize: "0.85rem", color: "var(--color-muted-text)", marginBottom: "1.25rem" }}>
+                  Trigger the ESP32-CAM unit with flash illumination.
+                </p>
+                <button
+                  disabled={busy || pid === ""}
+                  onClick={runDevice}
+                  style={{ width: "100%" }}
+                >
+                  {busy ? "Executing…" : "CAPTURE WITH DEVICE →"}
+                </button>
+              </div>
+
+              <div className="card" style={{ padding: "1.5rem", margin: 0 }}>
+                <h4 style={{ marginBottom: "0.5rem" }}>File Upload</h4>
+                <p style={{ fontSize: "0.85rem", color: "var(--color-muted-text)", marginBottom: "1rem" }}>
+                  Submit JPEG/PNG image from local storage.
+                </p>
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png"
+                  onChange={(e) => setFile(e.target.files?.[0] || null)}
+                  style={{ marginBottom: "1rem", padding: "0.5rem" }}
+                />
+                <button
+                  className="secondary"
+                  disabled={busy || pid === "" || !file}
+                  onClick={runUpload}
+                  style={{ width: "100%" }}
+                >
+                  {busy ? "Executing…" : "ANALYZE UPLOADED IMAGE →"}
+                </button>
+              </div>
             </div>
           </div>
-        </>
+
+          {/* Step 03 & 04: Analysis and Result Overview */}
+          <div className="grid-2">
+            <div className="card" style={{ padding: "1.5rem", margin: 0, opacity: 0.8 }}>
+              <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.8rem", fontWeight: 700, marginBottom: "0.5rem" }}>
+                03 AI ANALYSIS PIPELINE
+              </div>
+              <p style={{ fontSize: "0.85rem", color: "var(--color-muted-text)" }}>
+                Automatic execution of optical quality gate (blur, exposure, contrast) followed by
+                multi-class classification inference.
+              </p>
+            </div>
+
+            <div className="card" style={{ padding: "1.5rem", margin: 0, opacity: 0.8 }}>
+              <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.8rem", fontWeight: 700, marginBottom: "0.5rem" }}>
+                04 RESULT & REPORTING
+              </div>
+              <p style={{ fontSize: "0.85rem", color: "var(--color-muted-text)" }}>
+                Instant presentation of screening verdict, confidence breakdown, safety disclaimer,
+                and exportable printable clinical report.
+              </p>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

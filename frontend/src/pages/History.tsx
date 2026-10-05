@@ -19,81 +19,155 @@ export default function History() {
 
   const compareRows = compare.map((id) => rows.find((r) => r.id === id)).filter(Boolean) as Screening[];
 
-  if (loading) return <p className="loading">Loading history…</p>;
+  if (loading) return <p className="loading">Loading screening history archive…</p>;
 
   return (
     <div>
-      <h2>Screening History</h2>
+      <div className="editorial-kicker">Clinical Archive · Longitudinal Tracking</div>
+
+      <h1 className="editorial-title">History</h1>
+
+      <p className="editorial-subtitle">
+        Archival records of completed dermatological screenings with multi-session side-by-side
+        comparative analysis.
+      </p>
+
+      <hr className="rule-heavy" />
+
+      {/* Side-by-Side Comparison Module */}
+      {compareRows.length > 0 && (
+        <div className="card-heavy" style={{ padding: "2rem", marginBottom: "2.5rem" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "1rem" }}>
+            <h3 style={{ textTransform: "uppercase", margin: 0 }}>
+              Longitudinal Comparison ({compareRows.length}/2)
+            </h3>
+            <button className="ghost" onClick={() => setCompare([])} style={{ fontSize: "0.8rem" }}>
+              Clear comparison
+            </button>
+          </div>
+
+          <div className="grid-2">
+            {compareRows.map((s, idx) => (
+              <div key={s.id} className="card" style={{ padding: "1.5rem", margin: 0, backgroundColor: "var(--color-surface-muted)" }}>
+                <div style={{ fontFamily: "var(--font-mono)", fontSize: "0.75rem", textTransform: "uppercase", marginBottom: "0.5rem" }}>
+                  Record {idx + 1} · Case #{s.id}
+                </div>
+                <table style={{ margin: "0.5rem 0" }}>
+                  <tbody>
+                    <tr>
+                      <td><strong>Patient</strong></td>
+                      <td>{s.patient_code || s.patient_id}</td>
+                    </tr>
+                    <tr>
+                      <td><strong>Prediction</strong></td>
+                      <td><strong>{s.prediction}</strong></td>
+                    </tr>
+                    <tr>
+                      <td><strong>Confidence</strong></td>
+                      <td style={{ fontFamily: "var(--font-mono)" }}>
+                        {s.confidence != null ? `${(s.confidence * 100).toFixed(1)}%` : "—"}
+                      </td>
+                    </tr>
+                    <tr>
+                      <td><strong>Date</strong></td>
+                      <td style={{ fontSize: "0.85rem" }}>
+                        {s.created_at ? new Date(s.created_at).toLocaleDateString() : "—"}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+                <Link to={`/screening/${s.id}`}>
+                  <button className="secondary" style={{ width: "100%", marginTop: "0.5rem", fontSize: "0.75rem" }}>
+                    View Complete Case #{s.id} →
+                  </button>
+                </Link>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {rows.length === 0 ? (
         <div className="empty-state">
           <h3>No screenings yet</h3>
-          <p>Run a screening from the <Link to="/screening/new">New Screening</Link> page.</p>
+          <p>Run a screening from the <Link to="/screening/new">New Screening</Link> page to populate this archive.</p>
+          <Link to="/screening/new">
+            <button>Start First Screening →</button>
+          </Link>
         </div>
       ) : (
-        <>
-          <p style={{ fontSize: "0.85rem", color: "var(--color-text-subtle)" }}>
-            Select up to 2 screenings to compare.
-          </p>
+        <div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "1rem" }}>
+            <p style={{ fontFamily: "var(--font-mono)", fontSize: "0.8rem", color: "var(--color-muted-text)", margin: 0 }}>
+              Select checkboxes to compare up to 2 examinations side-by-side.
+            </p>
+            <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.8rem" }}>
+              Total Screenings: {rows.length}
+            </span>
+          </div>
+
           <table>
             <thead>
               <tr>
-                <th></th>
-                <th>ID</th>
+                <th style={{ width: "40px", textAlign: "center" }}>Compare</th>
+                <th style={{ width: "80px" }}>ID</th>
                 <th>Patient</th>
-                <th>Result</th>
+                <th>Screening Verdict</th>
                 <th>Confidence</th>
-                <th>Model</th>
-                <th>Date</th>
+                <th>Model Version</th>
+                <th>Timestamp</th>
+                <th style={{ textAlign: "right" }}>Actions</th>
               </tr>
             </thead>
             <tbody>
               {rows.map((s) => (
                 <tr key={s.id}>
-                  <td>
+                  <td style={{ textAlign: "center" }}>
                     <input
                       type="checkbox"
                       checked={compare.includes(s.id)}
                       onChange={() => toggleCompare(s.id)}
                       disabled={!compare.includes(s.id) && compare.length >= 2}
                       aria-label={`Compare screening ${s.id}`}
+                      style={{ width: "18px", height: "18px", minHeight: "unset", cursor: "pointer" }}
                     />
                   </td>
-                  <td><Link to={`/screening/${s.id}`}>#{s.id}</Link></td>
-                  <td>{s.patient_id}</td>
                   <td>
-                    {s.prediction}
-                    {s.abstained && <span className="badge warn" style={{ marginLeft: 4 }}>abstained</span>}
+                    <Link to={`/screening/${s.id}`} style={{ fontFamily: "var(--font-mono)", fontWeight: 700 }}>
+                      #{s.id}
+                    </Link>
                   </td>
-                  <td>{s.confidence != null ? (s.confidence * 100).toFixed(1) + "%" : "—"}</td>
-                  <td style={{ fontSize: "0.8rem", color: "var(--color-text-subtle)" }}>{s.model_version}</td>
-                  <td style={{ fontSize: "0.8rem" }}>
-                    {s.created_at ? new Date(s.created_at).toLocaleString() : "—"}
+                  <td>
+                    <strong>{s.patient_code || `PAT-${s.patient_id}`}</strong>
+                  </td>
+                  <td>
+                    <strong>{s.prediction}</strong>
+                    {s.abstained && <span className="badge" style={{ marginLeft: "0.5rem" }}>abstained</span>}
+                  </td>
+                  <td style={{ fontFamily: "var(--font-mono)" }}>
+                    {s.confidence != null ? `${(s.confidence * 100).toFixed(1)}%` : "—"}
+                  </td>
+                  <td style={{ fontFamily: "var(--font-mono)", fontSize: "0.85rem" }}>
+                    {s.model_version || "MockModel"}
+                  </td>
+                  <td style={{ fontSize: "0.85rem" }}>
+                    {s.created_at ? new Date(s.created_at).toLocaleDateString() : "—"}
+                  </td>
+                  <td style={{ textAlign: "right" }}>
+                    <div style={{ display: "inline-flex", gap: "0.75rem" }}>
+                      <Link to={`/screening/${s.id}`} style={{ fontFamily: "var(--font-mono)", fontSize: "0.8rem", textTransform: "uppercase" }}>
+                        View
+                      </Link>
+                      <Link to={`/reports/${s.id}`} style={{ fontFamily: "var(--font-mono)", fontSize: "0.8rem", textTransform: "uppercase" }}>
+                        Report
+                      </Link>
+                    </div>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
-
-          {compareRows.length === 2 && (
-            <div className="card" style={{ marginTop: "1rem" }}>
-              <h3>Comparison</h3>
-              <table>
-                <thead>
-                  <tr><th></th><th>Screening #{compareRows[0].id}</th><th>Screening #{compareRows[1].id}</th></tr>
-                </thead>
-                <tbody>
-                  <tr><td><strong>Prediction</strong></td><td>{compareRows[0].prediction}</td><td>{compareRows[1].prediction}</td></tr>
-                  <tr><td><strong>Confidence</strong></td><td>{compareRows[0].confidence != null ? (compareRows[0].confidence * 100).toFixed(1) + "%" : "—"}</td><td>{compareRows[1].confidence != null ? (compareRows[1].confidence * 100).toFixed(1) + "%" : "—"}</td></tr>
-                  <tr><td><strong>Abstained</strong></td><td>{compareRows[0].abstained ? "Yes" : "No"}</td><td>{compareRows[1].abstained ? "Yes" : "No"}</td></tr>
-                  <tr><td><strong>Model</strong></td><td>{compareRows[0].model_version}</td><td>{compareRows[1].model_version}</td></tr>
-                  <tr><td><strong>Quality</strong></td><td>{compareRows[0].image_quality_status}</td><td>{compareRows[1].image_quality_status}</td></tr>
-                  <tr><td><strong>Date</strong></td><td>{compareRows[0].created_at ? new Date(compareRows[0].created_at).toLocaleString() : "—"}</td><td>{compareRows[1].created_at ? new Date(compareRows[1].created_at).toLocaleString() : "—"}</td></tr>
-                </tbody>
-              </table>
-              <button className="secondary" onClick={() => setCompare([])}>Clear comparison</button>
-            </div>
-          )}
-        </>
+        </div>
       )}
     </div>
   );

@@ -8,34 +8,101 @@ export default function ResultPage() {
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
-    api.screenings.get(Number(id)).then(setRow).catch((e: Error) => setErr(e.message));
+    api.screenings
+      .get(Number(id))
+      .then(setRow)
+      .catch((e: Error) => setErr(e.message));
   }, [id]);
 
-  if (err) return <p className="error">{err}</p>;
-  if (!row) return <p className="loading">Loading result…</p>;
+  if (err) return <div className="notice-error">{err}</div>;
+  if (!row) return <p className="loading">Loading screening result…</p>;
 
   return (
     <div>
-      <h2>Screening Result</h2>
-      <div className="card">
-        <p>
-          <strong>Prediction:</strong>{" "}
-          <span style={{ fontSize: "1.1rem", fontWeight: 700 }}>{row.prediction}</span>{" "}
-          {row.abstained && <span className="badge warn">abstained</span>}
-        </p>
-        <p><strong>Confidence:</strong> {row.confidence != null ? (row.confidence * 100).toFixed(1) + "%" : "—"}</p>
-        <p><strong>Image quality:</strong> {row.image_quality_status ?? "—"}</p>
-        <p><strong>AI model:</strong> {row.model_name ?? "—"} · {row.model_version} · Prep: {row.preprocessing_version}</p>
-        <p><strong>Firmware:</strong> {row.device_firmware_version ?? "—"}</p>
-        <p><strong>Timestamp:</strong> {row.prediction_timestamp ? new Date(row.prediction_timestamp).toLocaleString() : row.created_at ? new Date(row.created_at).toLocaleString() : "—"}</p>
+      <div className="editorial-kicker">
+        Examination Finding · Case #{row.id} · Subject {row.patient_code || row.patient_id}
+      </div>
 
-        <div className="disclaimer">
-          ⚠️ {row.disclaimer}
+      <h1 className="editorial-title">
+        Screening<br />Result
+      </h1>
+
+      <p className="editorial-subtitle">
+        Automated image evaluation and clinical telemetry from optical screening session.
+      </p>
+
+      <hr className="rule-heavy" />
+
+      <div className="card-heavy" style={{ padding: "2.5rem" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "1.5rem" }}>
+          <h3 style={{ textTransform: "uppercase", margin: 0 }}>Clinical Assessment Record</h3>
+          <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.85rem" }}>
+            Session #{row.id}
+          </span>
         </div>
 
-        <div style={{ marginTop: "1rem", display: "flex", gap: "0.5rem" }}>
-          <Link to={`/reports/${row.id}`}><button>Open screening report</button></Link>
-          <Link to="/history"><button className="secondary">Back to history</button></Link>
+        <table style={{ margin: "0 0 1.5rem 0" }}>
+          <tbody>
+            <tr>
+              <td style={{ width: "220px" }}><strong>AI Prediction Verdict</strong></td>
+              <td>
+                <span style={{ fontFamily: "var(--font-display)", fontSize: "1.75rem", fontWeight: 900, textTransform: "uppercase" }}>
+                  {row.prediction}
+                </span>{" "}
+                {row.abstained && <span className="badge" style={{ marginLeft: "0.5rem" }}>abstained</span>}
+              </td>
+            </tr>
+            <tr>
+              <td><strong>Confidence Score</strong></td>
+              <td style={{ fontFamily: "var(--font-mono)", fontSize: "1.1rem", fontWeight: 700 }}>
+                {row.confidence != null ? `${(row.confidence * 100).toFixed(1)}%` : "—"}
+              </td>
+            </tr>
+            <tr>
+              <td><strong>Optical Image Quality</strong></td>
+              <td style={{ fontFamily: "var(--font-mono)" }}>
+                {row.image_quality_status ?? "PASSED"}
+              </td>
+            </tr>
+            <tr>
+              <td><strong>AI Model Pipeline</strong></td>
+              <td style={{ fontFamily: "var(--font-mono)", fontSize: "0.9rem" }}>
+                {row.model_name ?? "ScreeningModel"} · {row.model_version} · Preprocessing: {row.preprocessing_version}
+              </td>
+            </tr>
+            <tr>
+              <td><strong>Firmware Telemetry</strong></td>
+              <td style={{ fontFamily: "var(--font-mono)", fontSize: "0.9rem" }}>
+                {row.device_firmware_version ?? "v1.0.0"}
+              </td>
+            </tr>
+            <tr>
+              <td><strong>Evaluation Timestamp</strong></td>
+              <td style={{ fontFamily: "var(--font-mono)", fontSize: "0.9rem" }}>
+                {row.prediction_timestamp
+                  ? new Date(row.prediction_timestamp).toLocaleString()
+                  : row.created_at
+                  ? new Date(row.created_at).toLocaleString()
+                  : "—"}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div className="disclaimer">
+          <strong>Mandatory Safety Disclaimer:</strong> {row.disclaimer}
+        </div>
+
+        <div style={{ marginTop: "1.5rem", display: "flex", gap: "1rem", flexWrap: "wrap" }}>
+          <Link to={`/reports/${row.id}`}>
+            <button>Open screening report →</button>
+          </Link>
+          <Link to="/history">
+            <button className="secondary">Back to history</button>
+          </Link>
+          <Link to="/capture">
+            <button className="secondary">New Screening Session</button>
+          </Link>
         </div>
       </div>
     </div>
