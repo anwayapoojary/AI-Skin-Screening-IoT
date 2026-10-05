@@ -36,11 +36,14 @@ class Settings(BaseSettings):
     simulator_port: int = 8090
     upload_dir: str = "./data/uploads"
     max_upload_bytes: int = 10 * 1024 * 1024
-    cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
+    cors_origins: str = "*"
+    serial_port: str = "AUTO"
     log_level: str = "INFO"
 
     @property
     def cors_origin_list(self) -> list[str]:
+        if self.cors_origins.strip() == "*":
+            return ["*"]
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
 
     @property

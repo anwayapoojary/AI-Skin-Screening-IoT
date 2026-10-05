@@ -5,6 +5,7 @@ from typing import Any
 
 from hardware.drivers.device import CapturedImage, DeviceStatus, HealthScreeningDevice, SensorSample
 from hardware.drivers.real_device import RealHardwareDevice
+from hardware.drivers.serial_device import SerialHardwareDevice
 from hardware.protocols.schema import make_envelope
 from hardware.simulator.simulated_device import SimulatedDevice
 
@@ -14,7 +15,7 @@ logger = logging.getLogger(__name__)
 class DeviceGateway:
     """Owns the active HealthScreeningDevice. API layer must not import ESP32/MCU code."""
 
-    def __init__(self, mode: str, device_id: str) -> None:
+    def __init__(self, mode: str, device_id: str, port: str = "AUTO") -> None:
         self.mode = mode
         self.device_id = device_id
         self.device: HealthScreeningDevice
@@ -22,8 +23,10 @@ class DeviceGateway:
             self.device = SimulatedDevice(device_id=device_id)
         elif mode == "real":
             self.device = RealHardwareDevice(device_id=device_id)
+        elif mode in ("serial", "usb"):
+            self.device = SerialHardwareDevice(device_id=device_id, port=port)
         else:
-            raise ValueError(f"Unknown DEVICE_MODE: {mode}")
+            raise ValueError(f"Unknown DEVICE_MODE: {mode}. Must be 'simulation', 'real' (Wi-Fi), or 'serial' (direct USB).")
         self._events: list[dict[str, Any]] = []
 
     def _log_event(self, message_type: str, payload: dict[str, Any]) -> dict[str, Any]:

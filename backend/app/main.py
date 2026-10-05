@@ -35,3 +35,19 @@ app.include_router(reminders.router, prefix=f"{prefix}/reminders", tags=["remind
 # Device WebSocket link (real ESP32-CAM connects here). Mounted at app root
 # so the firmware URL is ws://<host>:8000/ws/device, matching .env.
 app.include_router(ws.router)
+
+from pathlib import Path
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+
+frontend_dist = Path(__file__).resolve().parents[2] / "frontend" / "dist"
+if (frontend_dist / "index.html").exists():
+    if (frontend_dist / "assets").exists():
+        app.mount("/assets", StaticFiles(directory=str(frontend_dist / "assets")), name="assets")
+
+    @app.get("/{full_path:path}", include_in_schema=False)
+    async def serve_spa(full_path: str):
+        target = frontend_dist / full_path
+        if full_path and target.exists() and target.is_file():
+            return FileResponse(target)
+        return FileResponse(frontend_dist / "index.html")

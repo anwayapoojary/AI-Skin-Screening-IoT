@@ -84,13 +84,61 @@ static void handle_result(const char *prediction, int abstained)
     (void)prediction;  // full result stays in the web app, not the OLED
 }
 
+static void serial_poll()
+{
+    if (!Serial.available()) return;
+    String line = Serial.readStringUntil('\n');
+    line.trim();
+    if (line.length() == 0) return;
+
+    if (line == "CMD:PING") {
+        Serial.println("OK:PONG");
+    } else if (line == "CMD:STATUS") {
+        Serial.printf("{\"device_id\":\"%s\",\"state\":\"%s\",\"camera\":\"%s\"}\n",
+                      DEVICE_ID, sm_get_state_str(), camera_status_str());
+    } else if (line == "CMD:CAPTURE") {
+        if (!s_camera_ok) {
+            Serial.println("ERR:CAMERA_NOT_READY");
+            return;
+        }
+        sm_transition(DEVICE_STATE_CAPTURING);
+        display_show("CAPTURING...");
+        flash_set(1);
+        delay(120);
+        camera_fb_t *fb = camera_capture_frame();
+        flash_set(0);
+
+        if (!fb || fb->len == 0) {
+            if (fb) camera_return_frame(fb);
+            sm_transition(DEVICE_STATE_ERROR);
+            Serial.println("ERR:CAPTURE_FAILED");
+            display_show("ERROR");
+            return;
+        }
+
+        sm_transition(DEVICE_STATE_TRANSFERRING);
+        display_show("SENDING USB...");
+        Serial.printf("IMG_BEGIN:%u\n", fb->len);
+        Serial.write(fb->buf, fb->len);
+        Serial.println("\nIMG_END");
+        camera_return_frame(fb);
+
+        sm_transition(DEVICE_STATE_READY);
+        display_show("USB READY");
+    } else if (line.startsWith("CMD:DISPLAY:")) {
+        String text = line.substring(12);
+        display_show(text.c_str());
+        Serial.println("OK:DISPLAY");
+    }
+}
+
 /* --- Arduino entry points --------------------------------------------------- */
 
 void setup()
 {
     Serial.begin(UART_BAUD);
     delay(200);
-    Serial.println("\n[BOOT] AI health screening device");
+    Serial.println("\n[BOOT] AI health screening device (Dual Mode: Wi-Fi & USB Serial)");
 
     sm_init();
     sensors_init();
@@ -112,17 +160,20 @@ void setup()
     if (comm_wifi_connect() == 0) {
         comm_ws_begin();
         sm_transition(DEVICE_STATE_READY);
+        display_show("WIFI READY");
     } else {
-        sm_transition(DEVICE_STATE_ERROR);
-        display_show("WIFI ERROR");
+        // Wi-Fi not available: Fallback to Direct USB Serial Plug-In mode
+        Serial.println("[BOOT] Wi-Fi not connected. Operating in Direct USB Serial mode.");
+        sm_transition(DEVICE_STATE_READY);
+        display_show("USB READY");
     }
 
     s_display_state = sm_get_display_str();
-    display_show(s_display_state);
 }
 
 void loop()
 {
+    serial_poll();
     comm_poll();
 
     if (button_pressed()) {

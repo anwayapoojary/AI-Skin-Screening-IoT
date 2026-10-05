@@ -9,7 +9,11 @@ from hardware.device_gateway.gateway import DeviceGateway
 
 @lru_cache
 def get_gateway() -> DeviceGateway:
-    return DeviceGateway(mode=settings.device_mode, device_id=settings.device_id)
+    return DeviceGateway(
+        mode=settings.device_mode,
+        device_id=settings.device_id,
+        port=getattr(settings, "serial_port", "AUTO"),
+    )
 
 
 @lru_cache
