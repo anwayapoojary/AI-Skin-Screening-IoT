@@ -89,13 +89,13 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
     model_info = get_model_metadata()
     model_version = (
         get_model().model_version
-        if settings.model_backend == "mock"
+        if settings.ai_mode == "mock"
         else model_info.get("model_version")
     )
     model_label = (
-        "Mock screening model"
-        if settings.model_backend == "mock"
-        else model_info.get("model_name", "Real skin model unavailable")
+        "Mock model"
+        if settings.ai_mode == "mock"
+        else model_info.get("model_name", "EfficientNet-B0 / HAM10000")
     )
 
     return DashboardSummaryOut(
@@ -107,7 +107,7 @@ def get_dashboard_summary(db: Session = Depends(get_db)):
         failed_uploads=failed_uploads,
         active_ai_model=model_label,
         model_version=model_version,
-        model_backend=settings.model_backend,
+        model_backend=settings.ai_mode,
         device_mode=settings.device_mode,
         ai_mode=settings.ai_mode,
         last_sync=last_sync,

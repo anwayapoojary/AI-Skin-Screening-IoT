@@ -53,8 +53,30 @@ app.include_router(ws.router)
 
 @app.on_event("startup")
 def load_configured_model() -> None:
-    if settings.model_backend == "real":
+    if settings.ai_mode == "real":
         load_at_startup()
+
+
+@app.get("/ai/status", tags=["ai"])
+@app.get(f"{prefix}/ai/status", tags=["ai"])
+def get_ai_status():
+    if settings.ai_mode == "mock":
+        return {
+            "active_model": "Mock model",
+            "load_state": "mock",
+            "num_classes": 7,
+            "classes": ["akiec", "bcc", "bkl", "df", "mel", "nv", "vasc"],
+            "model_file_path": None,
+            "model_version": "mock-0.1.0",
+            "ai_mode": "mock",
+            "available": True,
+            "error": None,
+            "disclaimer": "Screening support only, not a diagnosis. Consult a doctor.",
+        }
+    from ai.inference import get_status as get_real_status
+    st = get_real_status()
+    st["ai_mode"] = settings.ai_mode
+    return st
 
 
 from pathlib import Path

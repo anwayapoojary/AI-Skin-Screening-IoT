@@ -5,10 +5,14 @@ echo       AI Health Screening IoT System Launcher
 echo ========================================================
 echo.
 
+if exist .venv\Scripts\activate.bat (
+    call .venv\Scripts\activate.bat
+)
+
 echo 1. Checking Python and dependencies...
 python -c "import fastapi, uvicorn" 2>nul
 if %errorlevel% neq 0 (
-    echo [ERROR] Required packages not found. Please run: pip install -r requirements.txt
+    echo [ERROR] Required packages not found. Please run: pip install -r backend\requirements.txt
     pause
     exit /b 1
 )

@@ -18,7 +18,7 @@ def get_gateway() -> DeviceGateway:
 
 @lru_cache
 def get_model():
-    if settings.model_backend == "real":
+    if settings.ai_mode == "real":
         from ai import inference
 
         return inference

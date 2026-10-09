@@ -22,9 +22,15 @@ class Settings(BaseSettings):
     device_id: str = "DEVICE_001"
     protocol_version: str = "1.0"
     device_token: str = ""  # set in env for device auth on /ws/device
-    model_backend: Literal["mock", "real"] = Field(
+    model_dir: str = Field(
+        default="./ai/models",
+        validation_alias=AliasChoices("MODEL_DIR", "SCREENING_MODEL_DIR"),
+        description="Path to directory containing real model bundle (model.pt, labels.json, preprocess.json, metrics.json, model_card.md). Defaults to './ai/models'.",
+    )
+    ai_mode: Literal["mock", "real"] = Field(
         default="real",
-        validation_alias=AliasChoices("MODEL_BACKEND", "AI_MODE"),
+        validation_alias=AliasChoices("AI_MODE", "MODEL_BACKEND"),
+        description="Active AI screening backend ('real' or 'mock'). Defaults to 'real' when bundle exists. Use 'mock' only when explicitly configured.",
     )
 
     # Legacy RealScreeningModel settings remain for backwards-compatible imports.
@@ -50,9 +56,9 @@ class Settings(BaseSettings):
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
 
     @property
-    def ai_mode(self) -> str:
-        """Compatibility for existing clients; MODEL_BACKEND is canonical."""
-        return self.model_backend
+    def model_backend(self) -> str:
+        """Compatibility alias for ai_mode."""
+        return self.ai_mode
 
     @property
     def screening_class_list(self) -> list[str]:
@@ -69,6 +75,10 @@ class Settings(BaseSettings):
     def ensure_dirs(self) -> None:
         Path("data").mkdir(parents=True, exist_ok=True)
         Path(self.upload_dir).mkdir(parents=True, exist_ok=True)
+
+    def is_bundle_present(self) -> bool:
+        md = Path(self.model_dir).resolve()
+        return (md / "model.pt").is_file() and (md / "labels.json").is_file()
 
 
 settings = Settings()

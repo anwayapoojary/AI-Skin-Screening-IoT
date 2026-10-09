@@ -12,6 +12,7 @@ model_version: short SHA-256 of model.pt + model name from metrics.json.
 from __future__ import annotations
 
 import hashlib
+import os
 import json
 import logging
 import re
@@ -22,9 +23,20 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
-# Paths — resolved relative to this file's location (ai/).
-_AI_DIR = Path(__file__).parent
-_MODELS_DIR = _AI_DIR / "models"
+
+def _resolve_models_dir() -> Path:
+    env_dir = os.environ.get("MODEL_DIR")
+    if env_dir:
+        return Path(env_dir).resolve()
+    try:
+        from backend.app.config import settings
+        return Path(settings.model_dir).resolve()
+    except Exception:
+        return (Path(__file__).parent / "models").resolve()
+
+
+# Paths — resolved relative to configured model directory.
+_MODELS_DIR = _resolve_models_dir()
 _MODEL_PATH = _MODELS_DIR / "model.pt"
 _LABELS_PATH = _MODELS_DIR / "labels.json"
 _PREPROCESS_PATH = _MODELS_DIR / "preprocess.json"
@@ -249,6 +261,7 @@ class _RealInferenceEngine:
             "top_name": self._full_names.get(top_label, top_label),
             "top3": top3,
             "probabilities": by_label,
+            "model_name": "EfficientNet-B0 / HAM10000",
             "model_version": self._model_version,
             "is_mock": False,
             "uncertain": uncertain,
@@ -344,7 +357,8 @@ def _read_model_metadata() -> dict:
         model_version = None
 
     return {
-        "model_name": metrics["model"],
+        "model_name": "EfficientNet-B0 / HAM10000",
+        "raw_model_name": metrics["model"],
         "model_version": model_version,
         "architecture": metrics["model"],
         "classes": classes,
@@ -372,3 +386,19 @@ def is_available() -> bool:
 def load_at_startup() -> None:
     """Initialize the singleton early while allowing the API to start on failure."""
     _get_engine()
+
+
+def get_status() -> dict:
+    """Return model runtime status including active model, load state, num classes, and path."""
+    engine = _get_engine()
+    return {
+        "active_model": "EfficientNet-B0 / HAM10000" if engine.ready else "Real model unavailable",
+        "load_state": "ready" if engine.ready else ("failed" if engine.load_error else "unloaded"),
+        "num_classes": len(engine._classes) if engine._classes else 0,
+        "classes": engine._classes,
+        "model_file_path": str(_MODEL_PATH.resolve()),
+        "model_version": engine._model_version,
+        "available": engine.ready,
+        "error": engine.load_error,
+        "disclaimer": DISCLAIMER,
+    }

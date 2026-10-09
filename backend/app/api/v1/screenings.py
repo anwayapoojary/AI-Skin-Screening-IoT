@@ -228,7 +228,7 @@ def _run_inference(db: Session, row: Screening, image_bytes: bytes) -> Screening
     row.probabilities = result["probabilities"]
     row.top3 = result["top3"]
     row.is_mock = result["is_mock"]
-    row.model_name = "Mock screening model" if result["is_mock"] else "EfficientNet-B0"
+    row.model_name = "Mock model" if result["is_mock"] else result.get("model_name", "EfficientNet-B0 / HAM10000")
     row.model_version = result["model_version"]
     row.preprocessing_version = "preprocess.json"
     row.image_quality_status = "ok"

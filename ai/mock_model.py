@@ -14,6 +14,7 @@ _LABELS_PATH = Path(__file__).parent / "models" / "labels.json"
 class MockScreeningModel:
     """Deterministic development model with the same output shape as real inference."""
 
+    model_name = "Mock model"
     model_version = "mock-0.1.0"
 
     def __init__(self) -> None:
@@ -59,6 +60,7 @@ class MockScreeningModel:
                 for label, probability in ordered[:3]
             ],
             "probabilities": probabilities,
+            "model_name": self.model_name,
             "model_version": self.model_version,
             "is_mock": True,
             "uncertain": top_probability < 0.5,

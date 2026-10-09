@@ -14,11 +14,11 @@ router = APIRouter(dependencies=[Depends(auth_ready)])
 def model_info():
     info = (
         get_model_info()
-        if settings.model_backend == "real"
+        if settings.ai_mode == "real"
         else get_model_metadata()
     )
-    info["active_backend"] = settings.model_backend
-    if settings.model_backend == "mock" and "error" not in info:
+    info["active_backend"] = settings.ai_mode
+    if settings.ai_mode == "mock" and "error" not in info:
         info["available"] = True
         info["load_error"] = None
     return info

@@ -62,11 +62,11 @@ def test_config_selects_mock_or_real_interface(monkeypatch):
     from backend.app.config import settings
 
     try:
-        monkeypatch.setattr(settings, "model_backend", "mock")
+        monkeypatch.setattr(settings, "ai_mode", "mock")
         deps.get_model.cache_clear()
         assert isinstance(deps.get_model(), MockScreeningModel)
 
-        monkeypatch.setattr(settings, "model_backend", "real")
+        monkeypatch.setattr(settings, "ai_mode", "real")
         deps.get_model.cache_clear()
         assert deps.get_model() is inference
     finally:
@@ -104,3 +104,27 @@ def test_uncertain_threshold_boundary(monkeypatch, class_probabilities, expected
 
     result = inference.predict(_png_bytes())
     assert result["uncertain"] is expected_uncertain
+
+
+def test_ai_status_and_model_metadata(monkeypatch):
+    from fastapi.testclient import TestClient
+    from backend.app.main import app
+    from backend.app.config import settings
+
+    status = inference.get_status()
+    assert status["active_model"] == "EfficientNet-B0 / HAM10000"
+    assert status["load_state"] == "ready"
+    assert status["num_classes"] == 7
+    assert len(status["classes"]) == 7
+    assert "model.pt" in status["model_file_path"]
+    assert status["available"] is True
+    assert status["error"] is None
+
+    # Test /ai/status via TestClient
+    with TestClient(app) as client:
+        resp = client.get("/ai/status")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["num_classes"] == 7
+        assert "disclaimer" in data
+
