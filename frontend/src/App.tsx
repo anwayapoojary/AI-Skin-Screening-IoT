@@ -1,21 +1,36 @@
-import { NavLink, Route, Routes } from "react-router-dom";
+import { Navigate, NavLink, Route, Routes, useLocation } from "react-router-dom";
 import About from "./pages/About";
 import AIAnalysis from "./pages/AIAnalysis";
-import CaptureUpload from "./pages/CaptureUpload";
 import Dashboard from "./pages/Dashboard";
 import DeviceStatusPage from "./pages/DeviceStatusPage";
 import Devices from "./pages/Devices";
-import History from "./pages/History";
 import NewScreening from "./pages/NewScreening";
 import PatientProfile from "./pages/PatientProfile";
 import Patients from "./pages/Patients";
-import Reminders from "./pages/Reminders";
+import Records from "./pages/Records";
 import ReportPage from "./pages/ReportPage";
 import ResultPage from "./pages/ResultPage";
-import ReportsIndex from "./pages/ReportsIndex";
+import ReportsLatest from "./pages/ReportsLatest";
 import Settings from "./pages/Settings";
 
+function GearMenu() {
+  return (
+    <details className="gear-menu">
+      <summary aria-label="System menu">⚙</summary>
+      <div className="gear-menu__list">
+        <NavLink to="/devices">Device</NavLink>
+        <NavLink to="/devices/live">Device Status</NavLink>
+        <NavLink to="/model">Model Info</NavLink>
+        <NavLink to="/settings">Settings</NavLink>
+        <NavLink to="/about">About</NavLink>
+      </div>
+    </details>
+  );
+}
+
 export default function App() {
+  const location = useLocation();
+
   return (
     <div className="layout">
       <nav>
@@ -26,73 +41,47 @@ export default function App() {
 
         <div className="nav-list">
           <NavLink to="/" end>
-            <span className="nav-num">01</span>
-            <span>Dashboard</span>
+            Dashboard
           </NavLink>
-          <NavLink to="/patients">
-            <span className="nav-num">02</span>
-            <span>Patients</span>
+          <NavLink to="/patients">Patients</NavLink>
+          <NavLink
+            to="/screening/new"
+            className={() => (location.pathname.startsWith("/screening") ? "active" : "")}
+          >
+            Screening
           </NavLink>
-          <NavLink to="/capture">
-            <span className="nav-num">03</span>
-            <span>Capture / Upload</span>
-          </NavLink>
-          <NavLink to="/screening/new">
-            <span className="nav-num">04</span>
-            <span>New Screening</span>
-          </NavLink>
-          <NavLink to="/analysis">
-            <span className="nav-num">05</span>
-            <span>AI Analysis</span>
-          </NavLink>
-          <NavLink to="/history">
-            <span className="nav-num">06</span>
-            <span>History</span>
-          </NavLink>
-          <NavLink to="/reports/latest">
-            <span className="nav-num">07</span>
-            <span>Reports</span>
-          </NavLink>
-          <NavLink to="/reminders">
-            <span className="nav-num">08</span>
-            <span>Reminders</span>
-          </NavLink>
-
-          <div className="nav-section-title">Hardware & System</div>
-
-          <NavLink to="/devices">
-            <span className="nav-num">09</span>
-            <span>Device</span>
-          </NavLink>
-          <NavLink to="/devices/live">
-            <span className="nav-num">10</span>
-            <span>Device Status</span>
-          </NavLink>
-          <NavLink to="/settings">
-            <span className="nav-num">11</span>
-            <span>Settings</span>
-          </NavLink>
-          <NavLink to="/about">
-            <span className="nav-num">12</span>
-            <span>About</span>
+          <NavLink
+            to="/records"
+            className={() => (location.pathname.startsWith("/records") ? "active" : "")}
+          >
+            Records
           </NavLink>
         </div>
       </nav>
       <main>
+        <header className="app-header">
+          <GearMenu />
+        </header>
         <Routes>
           <Route path="/" element={<Dashboard />} />
           <Route path="/patients" element={<Patients />} />
           <Route path="/patients/:id" element={<PatientProfile />} />
-          <Route path="/capture" element={<CaptureUpload />} />
+          <Route
+            path="/capture"
+            element={<Navigate to={`/screening/new${location.search}`} replace />}
+          />
           <Route path="/screening/new" element={<NewScreening />} />
-          <Route path="/analysis" element={<AIAnalysis />} />
+          <Route path="/analysis" element={<Navigate to="/model" replace />} />
+          <Route path="/model" element={<AIAnalysis />} />
           <Route path="/screening/:id" element={<ResultPage />} />
-          <Route path="/reports/latest" element={<ReportsIndex />} />
+          <Route path="/reports/latest" element={<ReportsLatest />} />
           <Route path="/reports/:id" element={<ReportPage />} />
+          <Route path="/reports" element={<Navigate to="/records?tab=reports" replace />} />
           <Route path="/devices" element={<Devices />} />
           <Route path="/devices/live" element={<DeviceStatusPage />} />
-          <Route path="/history" element={<History />} />
-          <Route path="/reminders" element={<Reminders />} />
+          <Route path="/history" element={<Navigate to="/records?tab=history" replace />} />
+          <Route path="/reminders" element={<Navigate to="/records?tab=reminders" replace />} />
+          <Route path="/records" element={<Records />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/about" element={<About />} />
         </Routes>

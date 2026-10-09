@@ -8,7 +8,7 @@ services:
     environment:
       DATABASE_URL: sqlite:////app/data/app.db
       DEVICE_MODE: simulation
-      AI_MODE: mock
+      MODEL_BACKEND: real
       CORS_ORIGINS: http://localhost:8080,http://127.0.0.1:8080
     volumes:
       - appdata:/app/data

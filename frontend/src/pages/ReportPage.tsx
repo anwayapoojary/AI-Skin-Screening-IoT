@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { api, type Report } from "../api";
+import { api, SCREENING_DISCLAIMER, type Report } from "../api";
 
 export default function ReportPage() {
   const { id } = useParams();
@@ -22,7 +22,7 @@ export default function ReportPage() {
       <div className="no-print">
         <div className="editorial-kicker">Clinical Dossier Export · Official Document Format</div>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1.5rem" }}>
-          <Link to="/reports/latest" style={{ fontFamily: "var(--font-mono)", fontSize: "0.85rem", textTransform: "uppercase" }}>
+          <Link to="/reports" style={{ fontFamily: "var(--font-mono)", fontSize: "0.85rem", textTransform: "uppercase" }}>
             ← Back to Report Index
           </Link>
           <button onClick={() => window.print()}>
@@ -97,9 +97,9 @@ export default function ReportPage() {
                 <td style={{ width: "200px" }}><strong>Neural Model Finding</strong></td>
                 <td>
                   <span style={{ fontFamily: "var(--font-display)", fontSize: "1.4rem", fontWeight: 900, textTransform: "uppercase" }}>
-                    {r.prediction}
+                    {r.uncertain ? "Uncertain, needs review" : r.top_name || r.prediction}
                   </span>{" "}
-                  {r.abstained && <span className="badge" style={{ marginLeft: "0.5rem" }}>abstained</span>}
+                  {r.is_mock === true && <span className="badge warn" style={{ marginLeft: "0.5rem" }}>Mock AI</span>}
                 </td>
               </tr>
               <tr>
@@ -107,6 +107,10 @@ export default function ReportPage() {
                 <td style={{ fontFamily: "var(--font-mono)", fontSize: "1.05rem", fontWeight: 700 }}>
                   {r.confidence != null ? `${(r.confidence * 100).toFixed(1)}%` : "—"}
                 </td>
+              </tr>
+              <tr>
+                <td><strong>Image source</strong></td>
+                <td>{r.source || "—"}</td>
               </tr>
               <tr>
                 <td><strong>Optical Quality Status</strong></td>
@@ -130,6 +134,24 @@ export default function ReportPage() {
           </table>
         </div>
 
+        <section style={{ marginBottom: "2rem" }}>
+          <h4>Class probabilities</h4>
+          {Object.entries(r.probabilities ?? {}).map(([label, probability]) => (
+            <div key={label} style={{ display: "flex", justifyContent: "space-between", borderBottom: "1px solid var(--color-border)", padding: "0.35rem 0" }}>
+              <span>{label}</span>
+              <span>{(probability * 100).toFixed(1)}%</span>
+            </div>
+          ))}
+        </section>
+
+        <section style={{ marginBottom: "2rem" }}>
+          <h4>Model limitations</h4>
+          <ul>
+            {(r.model_limitations ?? []).map((limitation) => <li key={limitation}>{limitation}</li>)}
+          </ul>
+          <p><strong>Not validated on device images.</strong></p>
+        </section>
+
         {/* Mandatory Safety Notice Block */}
         <div
           style={{
@@ -143,7 +165,7 @@ export default function ReportPage() {
             MANDATORY CLINICAL SAFETY DISCLAIMER
           </div>
           <p style={{ margin: 0, fontStyle: "italic", fontSize: "0.9rem", lineHeight: 1.5, color: "var(--color-muted-text)" }}>
-            {r.disclaimer}
+            {SCREENING_DISCLAIMER}
           </p>
         </div>
 

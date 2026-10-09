@@ -6,7 +6,8 @@ extern "C" {
 #endif
 
 int button_init(void);
-int button_pressed(void);
+int button_pressed(void); /* Short press, once on release. */
+int button_long_pressed(void); /* Long press, once after BUTTON_LONG_PRESS_MS. */
 
 #ifdef __cplusplus
 }

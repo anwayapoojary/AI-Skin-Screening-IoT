@@ -64,7 +64,11 @@ class SimulatedDevice(HealthScreeningDevice):
             extra={"button": self.button, "flash": "on" if self.flash_on else "off", "oled": "0.96in-sim"},
         )
 
-    async def capture_image(self) -> CapturedImage:
+    async def capture_image(
+        self,
+        patient_id: int | None = None,
+        screening_id: int | None = None,
+    ) -> CapturedImage:
         if self.timeout_next:
             self.timeout_next = False
             self.sm.transition("ERROR")

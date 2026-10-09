@@ -7,6 +7,7 @@ extern "C" {
 
 /* 0.96" OLED — driver IC unconfirmed (often SSD1306 I2C). */
 int display_init(void);
+void display_set_serial_debug(int enabled);
 void display_show(const char *state_line);
 
 #ifdef __cplusplus

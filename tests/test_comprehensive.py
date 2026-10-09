@@ -34,8 +34,12 @@ def _make_png(w=100, h=100) -> bytes:
 
 
 def _make_jpeg() -> bytes:
-    """Minimal valid JPEG header bytes."""
-    return b"\xff\xd8\xff\xe0" + b"\x00" * 200
+    """Generate a complete small JPEG file."""
+    from PIL import Image
+
+    buffer = io.BytesIO()
+    Image.new("RGB", (100, 100), (120, 90, 70)).save(buffer, format="JPEG")
+    return buffer.getvalue()
 
 
 # ── Patient tests ──
@@ -101,7 +105,7 @@ class TestImageValidation:
         from backend.app.services.images import validate_image_bytes
         big = b"\xff\xd8\xff" + b"\x00" * (10 * 1024 * 1024 + 1)
         status, _ = validate_image_bytes(big)
-        assert status == "invalid"
+        assert status == "too_large"
 
     def test_valid_png_accepted(self):
         from backend.app.services.images import validate_image_bytes
@@ -162,9 +166,8 @@ class TestUploadScreening:
             data={"patient_id": str(p["id"])},
             files={"file": ("bad.bin", io.BytesIO(b"not an image"), "application/octet-stream")},
         )
-        assert r.status_code == 200
-        data = r.json()
-        assert data["abstained"] is True
+        assert r.status_code == 415
+        assert "decodable JPEG or PNG" in r.json()["detail"]
 
 
 # ── Mock prediction tests ──
@@ -178,40 +181,41 @@ class TestMockPrediction:
     def test_mock_predict_valid_image(self):
         from ai.mock_model import MockScreeningModel
         m = MockScreeningModel()
-        pred = m.predict(_make_png(), "ok")
-        assert pred.model_version.startswith("mock")
-        assert pred.preprocessing_version.startswith("prep-mock")
-        assert pred.timestamp  # not empty
+        pred = m.predict(_make_png())
+        assert pred["model_version"].startswith("mock")
+        assert pred["is_mock"] is True
+        assert pred["top_label"] in m.classes
+        assert sum(pred["probabilities"].values()) == pytest.approx(1.0)
 
-    def test_mock_predict_low_quality_abstains(self):
+    def test_mock_predict_includes_uncertainty_state(self):
         from ai.mock_model import MockScreeningModel
         m = MockScreeningModel()
-        pred = m.predict(_make_png(), "low_quality")
-        assert pred.abstained is True
-        assert pred.prediction == "abstain"
+        pred = m.predict(_make_png())
+        assert isinstance(pred["uncertain"], bool)
+        assert len(pred["top3"]) == 3
 
-    def test_mock_predict_empty_abstains(self):
+    def test_mock_predict_rejects_empty_input(self):
         from ai.mock_model import MockScreeningModel
+        from ai.inference import InferenceError
         m = MockScreeningModel()
-        pred = m.predict(b"", "ok")
-        assert pred.abstained is True
+        with pytest.raises(InferenceError):
+            m.predict(b"")
 
     def test_prediction_schema_complete(self):
         from ai.mock_model import MockScreeningModel
         m = MockScreeningModel()
-        pred = m.predict(_make_png(), "ok")
-        d = pred.as_dict()
-        required_fields = {"prediction", "confidence", "model_version",
-                          "preprocessing_version", "timestamp",
-                          "image_quality_status", "abstained", "notes", "disclaimer"}
-        assert required_fields.issubset(set(d.keys()))
+        result = m.predict(_make_png())
+        required_fields = {
+            "top_label", "top_name", "top3", "probabilities", "model_version",
+            "is_mock", "uncertain", "disclaimer",
+        }
+        assert required_fields.issubset(result)
 
     def test_prediction_versioning(self):
         from ai.mock_model import MockScreeningModel
         m = MockScreeningModel()
-        pred = m.predict(_make_png(), "ok")
-        assert pred.model_version  # not empty
-        assert pred.preprocessing_version  # not empty
+        result = m.predict(_make_png())
+        assert result["model_version"]
 
 
 # ── History tests ──
@@ -322,17 +326,16 @@ class TestReports:
     def test_report_title_is_ai_health_screening(self):
         p = _create_patient("Report Patient")
         client.post("/api/v1/devices/DEVICE_001/connect")
-        s = client.post("/api/v1/screenings", json={
-            "patient_id": p["id"],
-            "image_source": "device",
+        created = client.post("/api/v1/screenings", json={
+            "patient_id": p["id"], "source": "simulated",
         })
-        sid = s.json()["id"]
+        sid = created.json()["id"]
+        client.post(f"/api/v1/screenings/{sid}/capture")
         r = client.get(f"/api/v1/reports/{sid}")
         assert r.status_code == 200
         report = r.json()
         assert report["title"] == "AI Health Screening Report"
-        assert "certificate" in report["disclaimer"].lower()
-        assert "screening report" in report["disclaimer"].lower()
+        assert report["disclaimer"] == "Screening support only, not a diagnosis. Consult a doctor."
 
     def test_report_not_found(self):
         r = client.get("/api/v1/reports/99999")
@@ -341,14 +344,17 @@ class TestReports:
     def test_report_includes_model_info(self):
         p = _create_patient("Report Model Patient")
         client.post("/api/v1/devices/DEVICE_001/connect")
-        s = client.post("/api/v1/screenings", json={
-            "patient_id": p["id"],
-            "image_source": "device",
+        created = client.post("/api/v1/screenings", json={
+            "patient_id": p["id"], "source": "simulated",
         })
-        sid = s.json()["id"]
+        sid = created.json()["id"]
+        captured = client.post(f"/api/v1/screenings/{sid}/capture")
+        assert captured.status_code == 200
         r = client.get(f"/api/v1/reports/{sid}")
         report = r.json()
         assert report["model_version"] is not None
+        assert report["probabilities"]
+        assert report["model_limitations"]
 
 
 # ── Device auth tests ──
@@ -403,17 +409,17 @@ class TestIntegrationFlow:
         assert c.json()["state"] == "READY"
 
         # 3. Run screening via device
-        s = client.post("/api/v1/screenings", json={
-            "patient_id": pid,
-            "image_source": "device",
+        created = client.post("/api/v1/screenings", json={
+            "patient_id": pid, "source": "simulated",
         })
+        s = client.post(f"/api/v1/screenings/{created.json()['id']}/capture")
         assert s.status_code == 200
         screening = s.json()
         assert screening["prediction"] is not None
         assert screening["model_version"] is not None
         assert screening["model_name"] is not None
         assert screening["prediction_timestamp"] is not None
-        assert "diagnosis" in screening["disclaimer"].lower() or "Diagnosis" in screening["disclaimer"]
+        assert screening["disclaimer"] == "Screening support only, not a diagnosis. Consult a doctor."
         sid = screening["id"]
 
         # 4. Get result
@@ -432,7 +438,7 @@ class TestIntegrationFlow:
         assert report.status_code == 200
         report_data = report.json()
         assert report_data["title"] == "AI Health Screening Report"
-        assert "certificate" in report_data["disclaimer"].lower()
+        assert report_data["disclaimer"] == "Screening support only, not a diagnosis. Consult a doctor."
         assert report_data["patient_code"] == code
 
         # 7. Device status

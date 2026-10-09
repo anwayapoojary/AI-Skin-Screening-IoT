@@ -39,19 +39,32 @@
 #define HREF_GPIO_NUM   23
 #define PCLK_GPIO_NUM   22
 
-/* Onboard white flash LED on AI-Thinker ESP32-CAM. */
-#define PIN_FLASH_LED    4
+/* Onboard high-power white strobe/flash LED on AI-Thinker ESP32-CAM. */
+#define PIN_FLASH_LED        4
+/* Optional external white status indicator LED via 220Ω resistor to GND.
+ * NOTE: GPIO12 is a strapping pin (MTDI/voltage select at boot). Must be LOW at boot! */
+#define PIN_INDICATOR_LED   12
 /* Onboard red status LED (active-low) — optional. */
-#define PIN_STATUS_LED  33
+#define PIN_STATUS_LED      33
 
-/* --- Peripherals YOU wire (these are the only truly free GPIOs) ------------
- * GPIO 12/13/14/15 are the practical free pins on this board and are SHARED
- * with the microSD slot. Do NOT use the microSD card if you use these for the
- * OLED/button. Confirm against your wiring; reassign here if needed.
+/* --- Peripherals YOU wire (no microSD card allowed) ------------------------
+ * Pins 12, 13, 14, 15 are shared with the microSD slot. Do NOT insert or use
+ * an SD card!
+ *
+ * Strapping pin cautions:
+ * - GPIO12: boot voltage select; keep LOW or pulled down during reset.
+ * - GPIO15: debug log output control; keep HIGH/silent at boot.
+ * - GPIO0: flash mode select only; jumper to GND during flashing, remove after.
+ *
+ * Wire assignments:
+ * - Button: GPIO13 with 10kΩ external pull-up to 3.3V, momentary switch to GND.
+ * - OLED I2C: SDA to GPIO15, SCL to GPIO14, VCC to 3.3V, GND to GND.
+ * - Main strobe: onboard flash LED GPIO4.
+ * - Indicator LED: GPIO12 via 220Ω resistor to GND.
  */
-#define PIN_OLED_SDA    14   /* I2C SDA for the 0.96" SSD1306 OLED (confirm) */
-#define PIN_OLED_SCL    15   /* I2C SCL (confirm) */
-#define PIN_BUTTON      13   /* push button to GND, uses internal pull-up (confirm) */
+#define PIN_OLED_SDA        15   /* I2C SDA for the 0.96" SSD1306 OLED (VCC: 3.3V) */
+#define PIN_OLED_SCL        14   /* I2C SCL for the 0.96" SSD1306 OLED */
+#define PIN_BUTTON          13   /* Tactile push button (10kΩ pull-up to 3.3V, switch to GND) */
 
 #else  /* BOARD_OTHER — do not guess; copy from your module's datasheet. */
 

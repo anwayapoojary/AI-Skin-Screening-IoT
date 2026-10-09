@@ -82,22 +82,27 @@ export default function About() {
             <tr>
               <td><strong>Display Unit</strong></td>
               <td>0.96″ SSD1306 Monochrome OLED Screen</td>
-              <td>I2C (SDA: GPIO14, SCL: GPIO15)</td>
+              <td>I2C (SDA: GPIO15, SCL: GPIO14, VCC 3.3V)</td>
             </tr>
             <tr>
               <td><strong>Strobe Illumination</strong></td>
-              <td>High-Power White Surface-Mount LED</td>
+              <td>High-Power White Surface-Mount LED (Flash)</td>
               <td>GPIO4 Strobe Output</td>
+            </tr>
+            <tr>
+              <td><strong>Status Indicator</strong></td>
+              <td>Optional 3mm White Status LED</td>
+              <td>GPIO12 Output via 220Ω to GND (strapping pin, low at boot)</td>
             </tr>
             <tr>
               <td><strong>Operator Trigger</strong></td>
               <td>Tactile Momentary Push Button</td>
-              <td>GPIO13 (Internal Pull-Up)</td>
+              <td>GPIO13 (10kΩ External Pull-Up to 3.3V, momentary to GND)</td>
             </tr>
             <tr>
               <td><strong>Power Delivery</strong></td>
-              <td>External 5V 2A DC Supply</td>
-              <td>Regulated 5V Rail</td>
+              <td>LiPo Battery → TP4056 → SPDT Switch → 5V Boost</td>
+              <td>ESP32-CAM 5V pin with 470µF buffer capacitor</td>
             </tr>
           </tbody>
         </table>
@@ -105,8 +110,8 @@ export default function About() {
 
       {/* Ethical & Regulatory Disclaimer */}
       <div className="disclaimer">
-        <strong>CLINICAL SAFETY & REGULATORY ADVISORY:</strong> This system is an engineering research prototype.
-        It is NOT certified as a medical device, diagnosis apparatus, or clinical decision instrument.
+        <strong>CLINICAL SAFETY & REGULATORY ADVISORY:</strong> Screening support only, not a diagnosis. Consult a doctor.
+        This system is an engineering research prototype and is NOT certified as a medical device or diagnosis apparatus.
         All AI outputs constitute preliminary screening indications only and must never replace formal clinical examination
         by licensed medical professionals. Medication schedules are strictly managed by authorized clinical personnel
         and are never auto-prescribed by the automated system.

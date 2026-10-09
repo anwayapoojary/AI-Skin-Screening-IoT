@@ -49,9 +49,13 @@ class DeviceGateway:
     async def status(self) -> DeviceStatus:
         return await self.device.get_status()
 
-    async def capture(self) -> CapturedImage:
+    async def capture(
+        self,
+        patient_id: int | None = None,
+        screening_id: int | None = None,
+    ) -> CapturedImage:
         await self.device.set_display("PLACE/CAPTURE IMAGE")
-        image = await self.device.capture_image()
+        image = await self.device.capture_image(patient_id, screening_id)
         self._log_event("IMAGE_TRANSFER", {"bytes": len(image.content), "mime": image.mime_type})
         return image
 

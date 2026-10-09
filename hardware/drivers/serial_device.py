@@ -121,7 +121,11 @@ class SerialHardwareDevice(HealthScreeningDevice):
             extra={"port": self.port or "None", "connection": "direct_usb_serial"},
         )
 
-    async def capture_image(self) -> CapturedImage:
+    async def capture_image(
+        self,
+        patient_id: int | None = None,
+        screening_id: int | None = None,
+    ) -> CapturedImage:
         if not self.is_connected():
             await self.connect()
         if not self._ser:

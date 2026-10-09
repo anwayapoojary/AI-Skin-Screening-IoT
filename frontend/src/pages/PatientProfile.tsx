@@ -123,7 +123,7 @@ export default function PatientProfile() {
               <button className="secondary" onClick={() => setEditing(true)}>
                 Edit Patient Record
               </button>
-              <Link to={`/capture?patient=${patient.id}`}>
+              <Link to={`/screening/new?patient=${patient.id}`}>
                 <button>Initiate Screening for Patient →</button>
               </Link>
             </div>
@@ -143,7 +143,7 @@ export default function PatientProfile() {
           <div className="empty-state">
             <h3>No Screenings on File</h3>
             <p>No optical examinations have been recorded for this patient yet.</p>
-            <Link to={`/capture?patient=${patient.id}`}>
+            <Link to={`/screening/new?patient=${patient.id}`}>
               <button>Capture First Screening Image →</button>
             </Link>
           </div>

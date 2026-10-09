@@ -104,7 +104,13 @@ class ConnectionManager:
     async def start_screening(self, device_id: str) -> None:
         await self._send(device_id, "SCREENING_START", {})
 
-    async def request_capture(self, device_id: str, timeout: float = 15.0) -> tuple[bytes, str]:
+    async def request_capture(
+        self,
+        device_id: str,
+        timeout: float = 60.0,
+        patient_id: int | None = None,
+        screening_id: int | None = None,
+    ) -> tuple[bytes, str]:
         """Command a capture and await the returned image. Returns (bytes, mime)."""
         conn = self._conns.get(device_id)
         if conn is None:
@@ -114,7 +120,15 @@ class ConnectionManager:
         fut: asyncio.Future = loop.create_future()
         conn.pending[request_id] = fut
         try:
-            await self._send(device_id, "IMAGE_CAPTURE", {"request_id": request_id})
+            await self._send(
+                device_id,
+                "IMAGE_CAPTURE",
+                {
+                    "request_id": request_id,
+                    "patient_id": patient_id,
+                    "screening_id": screening_id,
+                },
+            )
             image_b64, mime = await asyncio.wait_for(fut, timeout=timeout)
         except asyncio.TimeoutError as exc:
             raise DeviceCommandTimeout("E_TIMEOUT: no image within timeout") from exc

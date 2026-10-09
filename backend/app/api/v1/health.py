@@ -15,6 +15,7 @@ def health():
         "env": settings.app_env,
         "device_mode": settings.device_mode,
         "ai_mode": settings.ai_mode,
+        "model_backend": settings.model_backend,
         "controller": "ESP32-CAM",
         "hardware_received": False,
         "protocol_version": settings.protocol_version,

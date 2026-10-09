@@ -1,16 +1,22 @@
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { api, type Screening } from "../api";
+import { api, SCREENING_DISCLAIMER, type Screening } from "../api";
 
 export default function ReportsIndex() {
   const [rows, setRows] = useState<Screening[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    api.screenings.list().then(setRows).finally(() => setLoading(false));
+    api.screenings
+      .list()
+      .then(setRows)
+      .catch((reason: Error) => setError(reason.message))
+      .finally(() => setLoading(false));
   }, []);
 
   if (loading) return <p className="loading">Loading clinical report index…</p>;
+  if (error) return <div className="notice-error" role="alert">{error}</div>;
 
   return (
     <div>
@@ -27,10 +33,7 @@ export default function ReportsIndex() {
           <span>Regulatory Notice</span>
           <span>SCREENING REPORTS ONLY</span>
         </div>
-        <p>
-          Screening reports only — not medical certificates or diagnostic statements.
-          All findings require qualified dermatological evaluation before medical action.
-        </p>
+        <p>{SCREENING_DISCLAIMER}</p>
       </div>
 
       <hr className="rule-heavy" />
@@ -57,14 +60,17 @@ export default function ReportsIndex() {
               <tr>
                 <th style={{ width: "160px" }}>Document Reference</th>
                 <th>Patient Code</th>
-                <th>Screening Verdict</th>
+                <th>Screening Result</th>
+                <th>Model Version</th>
+                <th>Probabilities</th>
                 <th>Date Compiled</th>
                 <th style={{ textAlign: "right" }}>Open Document</th>
               </tr>
             </thead>
             <tbody>
               {rows.map((s) => (
-                <tr key={s.id}>
+                <Fragment key={s.id}>
+                <tr>
                   <td>
                     <Link
                       to={`/reports/${s.id}`}
@@ -77,8 +83,14 @@ export default function ReportsIndex() {
                     <strong>{s.patient_code || `PAT-${s.patient_id}`}</strong>
                   </td>
                   <td>
-                    <strong>{s.prediction}</strong>
-                    {s.abstained && <span className="badge" style={{ marginLeft: 8 }}>abstained</span>}
+                    <strong>{s.uncertain ? "Uncertain, needs review" : s.prediction}</strong>
+                    {s.is_mock === true && <span className="badge warn" style={{ marginLeft: 8 }}>Mock AI</span>}
+                  </td>
+                  <td>{s.model_version || "—"}</td>
+                  <td style={{ fontSize: "0.75rem" }}>
+                    {Object.entries(s.probabilities ?? {})
+                      .map(([label, probability]) => `${label} ${(probability * 100).toFixed(1)}%`)
+                      .join(" · ") || "—"}
                   </td>
                   <td style={{ fontSize: "0.85rem" }}>
                     {s.created_at ? new Date(s.created_at).toLocaleDateString() : "—"}
@@ -96,6 +108,10 @@ export default function ReportsIndex() {
                     </Link>
                   </td>
                 </tr>
+                <tr key={`safety-${s.id}`}>
+                  <td colSpan={7} className="disclaimer">{SCREENING_DISCLAIMER}</td>
+                </tr>
+                </Fragment>
               ))}
             </tbody>
           </table>

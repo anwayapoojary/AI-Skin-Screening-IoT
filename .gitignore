@@ -40,14 +40,25 @@ hardware/firmware/build/
 hardware/firmware/.pio/
 **/wifi_secrets.h
 
-# ML model weights and datasets (large / licensed — keep out of git)
+# ML model weights and datasets
+# ai/models/ is committed (model.pt ~17 MB + config JSON files)
 ai/weights/
-*.pt
-*.pth
 *.onnx
 *.tflite
+*.pth
+*.pt
+# Un-ignore the committed model files in ai/models/
+!ai/models/*.pt
+!ai/models/*.json
+!ai/models/*.md
+!ai/models/*.png
+
+# Datasets (do not commit)
+datasets/
 data/ham10000/
 data/isic/
+HAM10000/
+ISIC/
 
 # Logs
 *.log

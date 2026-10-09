@@ -74,9 +74,17 @@ class RealHardwareDevice(HealthScreeningDevice):
             },
         )
 
-    async def capture_image(self) -> CapturedImage:
+    async def capture_image(
+        self,
+        patient_id: int | None = None,
+        screening_id: int | None = None,
+    ) -> CapturedImage:
         self._require_online()
-        data, mime = await manager.request_capture(self.device_id)
+        data, mime = await manager.request_capture(
+            self.device_id,
+            patient_id=patient_id,
+            screening_id=screening_id,
+        )
         return CapturedImage(content=data, mime_type=mime, source="device")
 
     async def read_sensors(self) -> list[SensorSample]:

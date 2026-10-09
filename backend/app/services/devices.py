@@ -46,3 +46,28 @@ def persist_gateway_events(db: Session, gateway: DeviceGateway, device_pk: int) 
             )
         )
     db.commit()
+
+
+def record_device_upload(
+    db: Session,
+    device_id: str,
+    source: str,
+    device_type: str,
+) -> Device:
+    row = db.query(Device).filter(Device.device_id == device_id).one_or_none()
+    now = datetime.now(timezone.utc)
+    if row is None:
+        row = Device(
+            device_id=device_id,
+            device_type=device_type,
+            protocol_version="1.0",
+            connection_status="UPLOAD_RECEIVED",
+            last_seen=now,
+        )
+        db.add(row)
+    else:
+        row.device_type = device_type
+        row.connection_status = f"{source.upper()}_UPLOAD_RECEIVED"
+        row.last_seen = now
+    db.flush()
+    return row

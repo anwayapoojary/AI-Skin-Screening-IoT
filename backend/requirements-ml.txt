@@ -1,5 +1,5 @@
-# Optional ML extras — only needed for AI_MODE=real (skin-lesion screening).
-# The base app (backend/requirements.txt) runs the mock model without these.
+# Optional model-training extras. Runtime inference dependencies (Torch, NumPy,
+# and Pillow) are installed with backend/requirements.txt.
 #
 # CPU install:  pip install -r backend/requirements-ml.txt
 # GPU (CUDA): install a matching torch build from https://pytorch.org first,

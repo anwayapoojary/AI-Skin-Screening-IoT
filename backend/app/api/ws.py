@@ -15,7 +15,7 @@ import logging
 
 from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
 
-from backend.app.config import settings
+from backend.app.deps import device_token_ok
 from hardware.device_gateway.connection_manager import manager
 from hardware.protocols.constants import MESSAGE_TYPES
 from hardware.protocols.schema import make_envelope
@@ -28,21 +28,13 @@ router = APIRouter()
 MAX_WS_MESSAGE_BYTES = 2 * 1024 * 1024  # 2 MiB — covers a base64 SVGA JPEG
 
 
-def _check_device_token(token: str | None) -> bool:
-    """Validate the device token.  Returns True if auth passes."""
-    expected = settings.device_token
-    if not expected:
-        return True  # no token configured → open (development)
-    return token == expected
-
-
 @router.websocket("/ws/device")
 async def device_socket(
     ws: WebSocket,
     token: str | None = Query(default=None),
 ) -> None:
     # ── Token auth ──
-    if not _check_device_token(token):
+    if not device_token_ok(token):
         await ws.close(code=4001, reason="invalid or missing device token")
         return
 

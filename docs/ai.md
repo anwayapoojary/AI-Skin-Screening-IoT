@@ -1,112 +1,77 @@
-# AI Screening Engine Architecture & Model Contract
+# Skin screening model
 
-The AI engine receives **images** (JPEG/PNG bytes) and quality metadata. It is strictly decoupled from device drivers, GPIO, and firmware transport.
+## Safety and scope
 
-## 1. Interface Specification
+**Screening support only, not a diagnosis. Consult a doctor.**
 
-All model implementations must conform to the abstract base class `ScreeningModel`:
+This research prototype is not a medical device. It must not be used to
+diagnose, rule out disease, or make treatment decisions.
 
-```python
-ScreeningModel.predict(image: bytes, image_quality_status: str = "ok") -> ScreeningPrediction
-```
+## Model and data
 
-### Prediction Output Schema
+The real backend loads the checked-in TorchScript EfficientNet-B0 model from
+`ai/models/model.pt`. Its seven output labels, full display names, and input
+normalization values are read from `ai/models/labels.json` and
+`ai/models/preprocess.json`. The reported version combines a short SHA-256
+hash of the weights with the model name in `ai/models/metrics.json`.
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `prediction` | `str` | Predicted class name or screening category (e.g., `Benign keratosis`, `refer`, `routine`, `abstain`) |
-| `confidence` | `float` | Model confidence probability `[0.0, 1.0]` |
-| `model_name` | `str` | Registered model identifier (e.g., `MockScreeningModel`, `EfficientNet-B0-Skin`) |
-| `model_version` | `str` | Version tag or commit hash of the weights |
-| `preprocessing_version` | `str` | Pipeline tag (e.g., `v1.0-standard`, `shades-of-gray-224`) |
-| `timestamp` | `datetime` | UTC timestamp when inference was executed |
-| `image_quality_status` | `str` | Verdict from optical quality gate (`ok`, `low_quality`, `invalid`) |
-| `abstained` | `bool` | True if quality was low or confidence was below threshold |
-| `disclaimer` | `str` | Mandatory investigational device disclaimer |
-| `notes` | `str` | Diagnostic details, class probabilities breakdown, or reason for abstaining |
+The training data is HAM10000 dermoscopic imagery. Evaluation splits are
+grouped by lesion ID using the 70/15/15 train/validation/test method recorded
+in `metrics.json`; patient-level separation is not possible because HAM10000
+does not provide patient IDs.
 
----
+## Supplied evaluation metrics
 
-## 2. Implementations
+These values are read from `ai/models/metrics.json`; they describe the supplied
+test-set evaluation and are not device-validation results.
 
-| Implementation | Location | Behavior |
-|----------------|----------|----------|
-| `MockScreeningModel` (Default) | `backend/app/services/ai_mock.py` | Deterministic simulation based on SHA256 digest of image bytes. Clearly tagged `DEMO / MOCK`. Never claims real clinical validity. |
-| `RealScreeningModel` | `backend/app/services/ai_real.py` | PyTorch transfer-learning backbone (e.g. EfficientNet-B0 or ResNet50). Loads weights from `MODEL_PATH`. Fails safely if weights or PyTorch are missing. |
+| Test class | Recall | Test support |
+| --- | ---: | ---: |
+| akiec | 0.5238095238095238 | 63 |
+| bcc | 0.8088235294117647 | 68 |
+| bkl | 0.7236842105263158 | 152 |
+| df | 0.42857142857142855 | 7 |
+| mel | 0.6631016042780749 | 187 |
+| nv | 0.7751004016064257 | 996 |
+| vasc | 0.9523809523809523 | 21 |
 
-Configure active mode in `.env`:
-```ini
-AI_MODE=mock      # or 'real'
-SCREENING_ABSTAIN_THRESHOLD=0.70
-SCREENING_MODEL_PATH=ai/weights/best_model.pt
-SCREENING_LABELS_PATH=ai/weights/labels.json
-```
+Test macro-F1: `0.6161402803949866`.
 
----
+The test support is especially small for rare classes, so those class-level
+metrics are noisy. The supplied confusion matrix is
+`ai/models/confusion_matrix.png`.
 
-## 3. Preprocessing & Optical Quality Gate
+## Limitations
 
-Located in `backend/app/services/preprocessing.py`:
+- Training images are dermoscopic; the image domain differs from ordinary
+  photos and ESP32-CAM captures.
+- The model has **not been validated on device images**. Performance on
+  ESP32-CAM, Wi-Fi, or USB captures is unknown.
+- The data has substantial class imbalance; melanocytic nevi dominate the
+  test set.
+- Demographic and skin-tone diversity is limited and is mostly lighter skin
+  types.
+- Per-class metrics for rare classes are noisy because their test supports
+  are small.
 
-1. **Format & Decoding Verification**: Decodes JPEG/PNG buffers. Rejects corrupted byte streams.
-2. **Dimension Check**: Minimum image edge `min_side >= 96` pixels.
-3. **Sharpness Gate (Laplacian Variance)**: Rejects blurry images where `variance_of_laplacian < 100.0`.
-4. **Exposure & Contrast Gate**:
-   - Dark threshold: Rejects if mean luminance `< 30.0` (severe underexposure).
-   - Bright threshold: Rejects if mean luminance `> 225.0` (severe overexposure/flash glare).
-5. **Illumination Correction**: Optional Shades-of-Gray colour constancy algorithm to normalize skin tones across changing ambient lighting.
-6. **Tensor Normalization**: Standard RGB ImageNet transform:
-   - Size: `224 × 224`
-   - Mean: `[0.485, 0.456, 0.406]`
-   - Std: `[0.229, 0.224, 0.225]`
+## Configuration and inference
 
-If the quality gate flags an image as `low_quality` or `invalid`, the model **abstains immediately** and does not output an arbitrary or forced prediction.
+`MODEL_BACKEND=mock` selects the deterministic development model.
+`MODEL_BACKEND=real` selects the TorchScript artifact. The mock remains
+available for development and tests.
 
----
+Real inference decodes an image as RGB, directly resizes it to the dimensions
+in `preprocess.json` with PIL bilinear interpolation (no crop), scales and
+normalizes using the file's values, then runs CPU inference with TorchScript.
+The output probabilities are softmax values for all seven classes. If the top
+probability is below `0.5`, the result is presented as “Uncertain, needs
+review”.
 
-## 4. Exact Drop-In Contract for Custom Trained Models
+The backend serves model metadata at `/api/model/info` and the supplied
+confusion matrix at `/api/model/confusion-matrix.png`. If the selected real
+model cannot load, the API remains available, reports the failure through
+model info, and rejects analysis with a clear service error.
 
-When replacing the mock model with your own trained deep learning model, adhere to this contract:
-
-### Model Specifications
-- **Framework**: PyTorch (`torch.nn.Module`, TorchScript `.pt`, or state dict `.pth`) or ONNX.
-- **Input Shape**: `[Batch_Size, 3, 224, 224]` (Float32 tensor, RGB channel order).
-- **Output Shape**: `[Batch_Size, Num_Classes]` (Logits or Softmax probabilities).
-- **Labels File**: `labels.json` containing an ordered list of class identifiers matching the output indices.
-
-### Drop-in Checklist for Adding Your Model
-1. Place your exported weights into `ai/weights/` (e.g. `ai/weights/skin_classifier.pt`).
-2. Place your class names mapping in `ai/weights/labels.json`:
-   ```json
-   ["actinic_keratosis", "basal_cell_carcinoma", "benign_keratosis", "dermatofibroma", "melanoma", "melanocytic_nevus", "vascular_lesion"]
-   ```
-3. Update `.env`:
-   ```ini
-   AI_MODE=real
-   SCREENING_MODEL_PATH=ai/weights/skin_classifier.pt
-   SCREENING_LABELS_PATH=ai/weights/labels.json
-   SCREENING_ABSTAIN_THRESHOLD=0.75
-   ```
-4. Verify by running the automated AI test suite:
-   ```bash
-   pytest tests/test_ai.py -v
-   ```
-
----
-
-## 5. Dataset & Hardware Discrepancy Notice
-
-> [!WARNING]
-> **Domain Shift Warning & Clinical Scope**:
-> Public benchmark datasets such as **HAM10000** or **ISIC** comprise high-resolution dermatoscopic images taken with calibrated optical dermatoscopes with polarized immersion fluid.
->
-> In contrast, the **ESP32-CAM** utilizes an unpolarized OV2640/OV3660 CMOS sensor with plastic lens elements, fixed focus, and direct white LED illumination. Consequently:
-> - Direct inference on raw ESP32-CAM captures using models trained purely on dermatoscope datasets exhibits significant domain shift.
-> - Model performance **cannot be considered validated** until the network has been fine-tuned and tested on genuine ESP32-CAM skin images.
-> - Public dataset licenses (e.g., CC BY-NC 4.0 for HAM10000) restrict commercial use; confirm all license terms prior to clinical translation.
-
----
-
-## 6. Regulatory & Clinical Safety Disclaimer
-
-This system is an **exploratory research prototype** designed to evaluate low-cost IoT screening feasibility. It is **NOT** a certified medical device, does not provide medical diagnoses, and cannot substitute for evaluation by a qualified dermatologist or physician.
+Datasets and local image uploads belong under ignored `data/` directories;
+do not commit dataset images. The trained `ai/models/model.pt` artifact is
+intentionally version controlled.

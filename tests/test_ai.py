@@ -1,13 +1,15 @@
+import pytest
+
 from ai.mock_model import MockScreeningModel
 from hardware.simulator.sample_image import SAMPLE_PNG
 
 
-def test_mock_predict_and_abstain_empty():
+def test_mock_predict_matches_real_result_contract():
     m = MockScreeningModel()
-    p = m.predict(SAMPLE_PNG, "ok")
-    assert p.model_version.startswith("mock")
-    assert p.disclaimer if hasattr(p, "disclaimer") else True
-    d = p.as_dict()
-    assert "Not a confirmed medical diagnosis" in d["disclaimer"]
-    bad = m.predict(b"", "ok")
-    assert bad.abstained
+    result = m.predict(SAMPLE_PNG)
+    assert result["model_version"].startswith("mock")
+    assert result["is_mock"] is True
+    assert len(result["top3"]) == 3
+    assert set(result["probabilities"]) == set(m.classes)
+    assert sum(result["probabilities"].values()) == pytest.approx(1.0)
+    assert result["disclaimer"] == "Screening support only, not a diagnosis. Consult a doctor."

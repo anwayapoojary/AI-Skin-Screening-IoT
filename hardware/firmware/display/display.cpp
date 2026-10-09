@@ -15,6 +15,7 @@
 
 static Adafruit_SSD1306 s_oled(OLED_WIDTH, OLED_HEIGHT, &Wire, -1);
 static bool s_ready = false;
+static bool s_serial_debug = true;
 
 int display_init(void)
 {
@@ -36,10 +37,14 @@ int display_init(void)
     return 0;
 }
 
+void display_set_serial_debug(int enabled)
+{
+    s_serial_debug = enabled != 0;
+}
+
 void display_show(const char *state_line)
 {
-    /* Always mirror to serial so debugging works even without the OLED. */
-    if (state_line) {
+    if (s_serial_debug && state_line) {
         Serial.print("[OLED] ");
         Serial.println(state_line);
     }

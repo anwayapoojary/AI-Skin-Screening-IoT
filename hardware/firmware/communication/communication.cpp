@@ -3,6 +3,8 @@
  * The ESP32-CAM is the WebSocket CLIENT: it connects out to the FastAPI backend
  * at ws://GATEWAY_HOST:GATEWAY_PORT/GATEWAY_WS_PATH, announces itself with
  * DEVICE_CONNECT, then streams HEARTBEAT/DEVICE_STATUS and answers commands.
+ * Screening images are posted to the shared device upload endpoint; diagnostic
+ * captures without screening context use IMAGE_TRANSFER.
  *
  * Libraries (see platformio.ini lib_deps):
  *   - links2004/WebSockets   (WebSocketsClient)
@@ -28,6 +30,13 @@ static unsigned long s_last_status = 0;
 static comm_capture_cb s_on_capture = nullptr;
 static comm_display_cb s_on_display = nullptr;
 static comm_result_cb s_on_result = nullptr;
+static bool s_serial_debug = true;
+static const char *s_transport_mode = "wifi";
+
+static void debug_line(const char *message)
+{
+    if (s_serial_debug) Serial.println(message);
+}
 
 void comm_set_handlers(comm_capture_cb on_capture, comm_display_cb on_display, comm_result_cb on_result)
 {
@@ -39,24 +48,26 @@ void comm_set_handlers(comm_capture_cb on_capture, comm_display_cb on_display, c
 int comm_wifi_connect(void)
 {
     if (WIFI_SSID[0] == '\0') {
-        Serial.println("[WIFI] no SSID configured (set WIFI_SSID in wifi_secrets.h)");
+        debug_line("[WIFI] no SSID configured (set WIFI_SSID in wifi_secrets.h)");
         return -1;
     }
-    Serial.printf("[WIFI] connecting to %s\n", WIFI_SSID);
+    if (s_serial_debug) Serial.printf("[WIFI] connecting to %s\n", WIFI_SSID);
     WiFi.mode(WIFI_STA);
     WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
     unsigned long start = millis();
     while (WiFi.status() != WL_CONNECTED && (millis() - start) < 20000) {
         delay(250);
-        Serial.print('.');
+        if (s_serial_debug) Serial.print('.');
     }
-    Serial.println();
+    if (s_serial_debug) Serial.println();
     if (WiFi.status() != WL_CONNECTED) {
-        Serial.println("[WIFI] connect failed");
+        debug_line("[WIFI] connect failed");
         return -1;
     }
-    Serial.print("[WIFI] connected, IP=");
-    Serial.println(WiFi.localIP());
+    if (s_serial_debug) {
+        Serial.print("[WIFI] connected, IP=");
+        Serial.println(WiFi.localIP());
+    }
     return 0;
 }
 
@@ -100,11 +111,17 @@ int comm_send_status(const char *state, const char *display_state,
     p["camera_status"] = camera_status ? camera_status : "unknown";
     p["sensor_status"] = "unavailable";
     p["communication_status"] = "ok";
+    p["transport_mode"] = s_transport_mode;
     p["firmware_version"] = FIRMWARE_VERSION;
     p["protocol_version"] = PROTOCOL_VERSION;
     if (flash) p["flash"] = flash;
     if (button) p["button"] = button;
     return send_doc(doc);
+}
+
+void comm_set_transport_mode(const char *mode)
+{
+    s_transport_mode = mode ? mode : "unknown";
 }
 
 static int send_heartbeat(void)
@@ -122,6 +139,18 @@ int comm_send_error(const char *code, const char *message)
     JsonObject p = doc.createNestedObject("payload");
     p["code"] = code ? code : "E_INVALID_CMD";
     p["message"] = message ? message : "";
+    return send_doc(doc);
+}
+
+int comm_send_capture_ack(const char *request_id)
+{
+    StaticJsonDocument<256> doc;
+    fill_envelope(doc, "IMAGE_TRANSFER");
+    JsonObject p = doc.createNestedObject("payload");
+    p["request_id"] = request_id ? request_id : "";
+    p["mime"] = "image/jpeg";
+    p["bytes"] = 0;
+    p["image_b64"] = "";
     return send_doc(doc);
 }
 
@@ -177,7 +206,9 @@ static void handle_command(const char *mtype, JsonObjectConst payload)
 {
     if (strcmp(mtype, "IMAGE_CAPTURE") == 0) {
         const char *req = payload["request_id"] | "";
-        if (s_on_capture) s_on_capture(req);
+        const int patient_id = payload["patient_id"] | 0;
+        const int screening_id = payload["screening_id"] | 0;
+        if (s_on_capture) s_on_capture(req, patient_id, screening_id);
     } else if (strcmp(mtype, "SET_DISPLAY") == 0) {
         const char *ds = payload["display_state"] | "";
         if (s_on_display) s_on_display(ds);
@@ -211,13 +242,13 @@ static void ws_event(WStype_t type, uint8_t *payload, size_t length)
         case WStype_CONNECTED:
             s_ws_connected = true;
             s_acked = false;
-            Serial.println("[WS] connected");
+            debug_line("[WS] connected");
             send_device_connect();
             break;
         case WStype_DISCONNECTED:
             s_ws_connected = false;
             s_acked = false;
-            Serial.println("[WS] disconnected");
+            debug_line("[WS] disconnected");
             break;
         case WStype_TEXT:
             on_ws_text(payload, length);
@@ -229,10 +260,29 @@ static void ws_event(WStype_t type, uint8_t *payload, size_t length)
 
 void comm_ws_begin(void)
 {
-    s_ws.begin(GATEWAY_HOST, GATEWAY_PORT, GATEWAY_WS_PATH);
+    String path = GATEWAY_WS_PATH;
+    if (DEVICE_TOKEN[0] != '\0') {
+        path += "?token=";
+        path += DEVICE_TOKEN;
+    }
+    s_ws.begin(GATEWAY_HOST, GATEWAY_PORT, path.c_str());
     s_ws.onEvent(ws_event);
     s_ws.setReconnectInterval(WS_RECONNECT_MS);
     s_ws.enableHeartbeat(15000, 3000, 2);  // ping/pong keepalive at the socket layer
+}
+
+void comm_ws_stop(void)
+{
+    s_ws.disconnect();
+    s_ws_connected = false;
+    s_acked = false;
+    WiFi.disconnect(true);
+    WiFi.mode(WIFI_OFF);
+}
+
+void comm_set_serial_debug(int enabled)
+{
+    s_serial_debug = enabled != 0;
 }
 
 void comm_poll(void)

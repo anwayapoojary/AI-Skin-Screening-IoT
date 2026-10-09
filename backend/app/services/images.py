@@ -2,26 +2,32 @@ from __future__ import annotations
 
 from pathlib import Path
 from uuid import uuid4
+from io import BytesIO
 
+from ai.inference import MAX_UPLOAD_BYTES
 from backend.app.config import settings
+from PIL import Image, UnidentifiedImageError
 
 ALLOWED_MIME = {"image/png": ".png", "image/jpeg": ".jpg"}
-PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
-JPEG_MAGIC = b"\xff\xd8\xff"
+FORMAT_MIME = {"PNG": "image/png", "JPEG": "image/jpeg"}
 
 
 def validate_image_bytes(data: bytes, mime_hint: str | None = None) -> tuple[str, str]:
     if not data:
         return "invalid", "empty"
-    if len(data) > settings.max_upload_bytes:
-        return "invalid", "too_large"
-    if data.startswith(PNG_MAGIC):
-        return "ok", "image/png"
-    if data.startswith(JPEG_MAGIC):
-        return "ok", "image/jpeg"
-    if mime_hint in ALLOWED_MIME and len(data) > 32:
-        return "ok", mime_hint
-    return "invalid", "unsupported"
+    if len(data) > MAX_UPLOAD_BYTES:
+        return "too_large", "too_large"
+    try:
+        with Image.open(BytesIO(data)) as image:
+            mime = FORMAT_MIME.get(image.format or "")
+            image.verify()
+        if mime is None:
+            return "invalid", "unsupported"
+        if mime_hint and mime_hint != mime:
+            return "invalid", "unsupported"
+        return "ok", mime
+    except (UnidentifiedImageError, OSError, ValueError, Image.DecompressionBombError):
+        return "invalid", "unsupported"
 
 
 def save_image(data: bytes, mime: str) -> str:

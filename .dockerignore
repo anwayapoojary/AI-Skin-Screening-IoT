@@ -1,0 +1,39 @@
+# Version control and IDE
+.git/
+.gitignore
+.idea/
+.vscode/
+
+# Python environment and caches
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Node environment and builds
+node_modules/
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# Local databases and runtime data
+data/
+*.db
+*.sqlite3
+backend/uploads/
+uploads/
+.env
+.env.local
+
+# Datasets
+datasets/
+HAM10000/
+ISIC/
+
+# Hardware firmware build cache
+hardware/firmware/.pio/
+hardware/firmware/build/

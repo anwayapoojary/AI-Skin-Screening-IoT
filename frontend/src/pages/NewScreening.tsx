@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { api, type Patient, type Screening } from "../api";
+import { api, type Patient, type Screening, type ScreeningSource } from "../api";
 
 export default function NewScreening() {
   const nav = useNavigate();
@@ -12,13 +12,17 @@ export default function NewScreening() {
   const [phase, setPhase] = useState("");
   const [err, setErr] = useState<string | null>(null);
   const [file, setFile] = useState<File | null>(null);
+  const [source, setSource] = useState<ScreeningSource>("upload");
 
   useEffect(() => {
-    api.patients.list().then((p) => {
-      setPatients(p);
-      if (preselect) setPid(Number(preselect));
-      else if (p[0]) setPid(p[0].id);
-    });
+    api.patients
+      .list()
+      .then((p) => {
+        setPatients(p);
+        if (preselect) setPid(Number(preselect));
+        else if (p[0]) setPid(p[0].id);
+      })
+      .catch((e: Error) => setErr(e.message));
   }, [preselect]);
 
   const go = (s: Screening) => nav(`/screening/${s.id}`);
@@ -29,7 +33,6 @@ export default function NewScreening() {
     setErr(null);
     setPhase("Step 03 / 04: Hardware triggering → optical transfer → AI neural evaluation…");
     try {
-      await api.devices.connect("DEVICE_001");
       const s = await api.screenings.runDevice(Number(pid));
       go(s);
     } catch (e) {
@@ -44,9 +47,13 @@ export default function NewScreening() {
     if (pid === "" || !file) return;
     setBusy(true);
     setErr(null);
-    setPhase("Step 03 / 04: Frame upload → optical quality gate validation → AI inference…");
+    setPhase("Creating screening record…");
     try {
-      const s = await api.screenings.upload(Number(pid), file);
+      const created = await api.screenings.create(Number(pid), source);
+      setPhase("Uploading image to the shared analysis pipeline…");
+      await api.screenings.uploadTo(created.id, file, source);
+      setPhase("Running model analysis and saving result…");
+      const s = await api.screenings.analyze(created.id);
       go(s);
     } catch (e) {
       setErr((e as Error).message);
@@ -57,6 +64,24 @@ export default function NewScreening() {
   };
 
   const selectedPatient = patients.find((p) => p.id === Number(pid));
+  const handleFileChange = (selected: File | undefined) => {
+    if (!selected) {
+      setFile(null);
+      return;
+    }
+    if (!["image/jpeg", "image/png"].includes(selected.type)) {
+      setErr("Choose a JPEG or PNG image.");
+      setFile(null);
+      return;
+    }
+    if (selected.size > 10 * 1024 * 1024) {
+      setErr("Image exceeds the 10 MB limit.");
+      setFile(null);
+      return;
+    }
+    setErr(null);
+    setFile(selected);
+  };
 
   return (
     <div>
@@ -146,10 +171,23 @@ export default function NewScreening() {
             </p>
 
             <div className="grid-2">
+              <label>
+                Image source
+                <select
+                  value={source}
+                  onChange={(event) => setSource(event.target.value as ScreeningSource)}
+                  aria-label="Image source"
+                >
+                  <option value="upload">Upload</option>
+                  <option value="wifi">Wi-Fi device upload</option>
+                  <option value="usb">USB device upload</option>
+                  <option value="simulated">Simulated device</option>
+                </select>
+              </label>
               <div className="card" style={{ padding: "1.5rem", margin: 0 }}>
                 <h4 style={{ marginBottom: "0.5rem" }}>Hardware Device Trigger</h4>
                 <p style={{ fontSize: "0.85rem", color: "var(--color-muted-text)", marginBottom: "1.25rem" }}>
-                  Trigger the ESP32-CAM unit with flash illumination.
+                  Capture through the configured device gateway. The simulator works without hardware.
                 </p>
                 <button
                   disabled={busy || pid === ""}
@@ -168,7 +206,7 @@ export default function NewScreening() {
                 <input
                   type="file"
                   accept="image/jpeg,image/png"
-                  onChange={(e) => setFile(e.target.files?.[0] || null)}
+                  onChange={(e) => handleFileChange(e.target.files?.[0])}
                   style={{ marginBottom: "1rem", padding: "0.5rem" }}
                 />
                 <button

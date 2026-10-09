@@ -1,14 +1,19 @@
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { api, type Screening } from "../api";
+import { api, SCREENING_DISCLAIMER, type Screening } from "../api";
 
 export default function History() {
   const [rows, setRows] = useState<Screening[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [compare, setCompare] = useState<number[]>([]);
 
   useEffect(() => {
-    api.screenings.list().then(setRows).finally(() => setLoading(false));
+    api.screenings
+      .list()
+      .then(setRows)
+      .catch((reason: Error) => setError(reason.message))
+      .finally(() => setLoading(false));
   }, []);
 
   const toggleCompare = (id: number) => {
@@ -20,6 +25,7 @@ export default function History() {
   const compareRows = compare.map((id) => rows.find((r) => r.id === id)).filter(Boolean) as Screening[];
 
   if (loading) return <p className="loading">Loading screening history archive…</p>;
+  if (error) return <div className="notice-error" role="alert">{error}</div>;
 
   return (
     <div>
@@ -60,13 +66,20 @@ export default function History() {
                     </tr>
                     <tr>
                       <td><strong>Prediction</strong></td>
-                      <td><strong>{s.prediction}</strong></td>
+                      <td>
+                        <strong>{s.uncertain ? "Uncertain, needs review" : s.prediction}</strong>
+                        {s.is_mock === true && <span className="badge warn">Mock AI</span>}
+                      </td>
                     </tr>
                     <tr>
                       <td><strong>Confidence</strong></td>
                       <td style={{ fontFamily: "var(--font-mono)" }}>
                         {s.confidence != null ? `${(s.confidence * 100).toFixed(1)}%` : "—"}
                       </td>
+                    </tr>
+                    <tr>
+                      <td><strong>Model version</strong></td>
+                      <td>{s.model_version || "—"}</td>
                     </tr>
                     <tr>
                       <td><strong>Date</strong></td>
@@ -115,13 +128,15 @@ export default function History() {
                 <th>Screening Verdict</th>
                 <th>Confidence</th>
                 <th>Model Version</th>
+                <th>Probabilities</th>
                 <th>Timestamp</th>
                 <th style={{ textAlign: "right" }}>Actions</th>
               </tr>
             </thead>
             <tbody>
               {rows.map((s) => (
-                <tr key={s.id}>
+                <Fragment key={s.id}>
+                <tr>
                   <td style={{ textAlign: "center" }}>
                     <input
                       type="checkbox"
@@ -141,14 +156,24 @@ export default function History() {
                     <strong>{s.patient_code || `PAT-${s.patient_id}`}</strong>
                   </td>
                   <td>
-                    <strong>{s.prediction}</strong>
-                    {s.abstained && <span className="badge" style={{ marginLeft: "0.5rem" }}>abstained</span>}
+                    <strong>{s.uncertain ? "Uncertain, needs review" : s.prediction}</strong>
+                    {s.is_mock === true && <span className="badge warn" style={{ marginLeft: "0.5rem" }}>Mock AI</span>}
+                    {s.top3?.map((item) => (
+                      <div key={item.label} style={{ fontSize: "0.75rem" }}>
+                        {item.name}: {(item.probability * 100).toFixed(1)}%
+                      </div>
+                    ))}
                   </td>
                   <td style={{ fontFamily: "var(--font-mono)" }}>
                     {s.confidence != null ? `${(s.confidence * 100).toFixed(1)}%` : "—"}
                   </td>
                   <td style={{ fontFamily: "var(--font-mono)", fontSize: "0.85rem" }}>
-                    {s.model_version || "MockModel"}
+                    {s.model_version || "—"}
+                  </td>
+                  <td style={{ fontSize: "0.75rem" }}>
+                    {Object.entries(s.probabilities ?? {})
+                      .map(([label, probability]) => `${label} ${(probability * 100).toFixed(1)}%`)
+                      .join(" · ") || "—"}
                   </td>
                   <td style={{ fontSize: "0.85rem" }}>
                     {s.created_at ? new Date(s.created_at).toLocaleDateString() : "—"}
@@ -164,6 +189,12 @@ export default function History() {
                     </div>
                   </td>
                 </tr>
+                <tr key={`disclaimer-${s.id}`}>
+                  <td colSpan={9} className="disclaimer">
+                    {SCREENING_DISCLAIMER}
+                  </td>
+                </tr>
+                </Fragment>
               ))}
             </tbody>
           </table>

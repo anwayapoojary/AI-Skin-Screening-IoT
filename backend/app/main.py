@@ -1,8 +1,18 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from backend.app.api import ws
-from backend.app.api.v1 import devices, health, patients, reminders, reports, screenings
+from backend.app.api import device, ws
+from backend.app.api.v1 import (
+    dashboard,
+    devices,
+    health,
+    model,
+    patients,
+    reminders,
+    reports,
+    screenings,
+)
+from ai.inference import load_at_startup
 from backend.app.config import settings
 from backend.app.db.session import init_db
 
@@ -16,31 +26,48 @@ app = FastAPI(
     docs_url="/docs",
 )
 
+_cors_origins = settings.cors_origin_list
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_origin_list,
-    allow_credentials=True,
+    allow_origins=_cors_origins,
+    allow_credentials=_cors_origins != ["*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 prefix = settings.api_v1_prefix
 app.include_router(health.router, prefix=prefix, tags=["health"])
+app.include_router(dashboard.router, prefix=f"{prefix}/dashboard", tags=["dashboard"])
 app.include_router(patients.router, prefix=f"{prefix}/patients", tags=["patients"])
 app.include_router(screenings.router, prefix=f"{prefix}/screenings", tags=["screenings"])
 app.include_router(devices.router, prefix=f"{prefix}/devices", tags=["devices"])
 app.include_router(reports.router, prefix=f"{prefix}/reports", tags=["reports"])
 app.include_router(reminders.router, prefix=f"{prefix}/reminders", tags=["reminders"])
+app.include_router(model.router, prefix="/api/model", tags=["model"])
+app.include_router(device.router, prefix="/api/device", tags=["device transport"])
 
 # Device WebSocket link (real ESP32-CAM connects here). Mounted at app root
 # so the firmware URL is ws://<host>:8000/ws/device, matching .env.
 app.include_router(ws.router)
+
+
+@app.on_event("startup")
+def load_configured_model() -> None:
+    if settings.model_backend == "real":
+        load_at_startup()
+
 
 from pathlib import Path
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
 frontend_dist = Path(__file__).resolve().parents[2] / "frontend" / "dist"
+upload_directory = Path(settings.upload_dir).resolve()
+app.mount(
+    "/uploads",
+    StaticFiles(directory=str(upload_directory), check_dir=False),
+    name="uploads",
+)
 if (frontend_dist / "index.html").exists():
     if (frontend_dist / "assets").exists():
         app.mount("/assets", StaticFiles(directory=str(frontend_dist / "assets")), name="assets")

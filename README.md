@@ -4,7 +4,8 @@ An integrated IoT and computer vision screening prototype designed for prelimina
 
 > [!IMPORTANT]
 > **Clinical & Regulatory Disclaimer**:
-> This system is an **exploratory research prototype** designed to evaluate low-cost screening feasibility. It is **NOT** a certified medical device, does not provide medical diagnoses, and cannot replace a qualified dermatologist or medical practitioner. Medicine reminders are strictly entered by authorized personnel and are **never** auto-prescribed from AI outputs.
+> **Screening support only, not a diagnosis. Consult a doctor.**  
+> This system is an **exploratory research prototype** designed to evaluate low-cost screening feasibility. It is **NOT** a certified medical device, does not provide medical diagnoses, and cannot replace a qualified dermatologist or medical practitioner. Medicine reminders are strictly entered by authorized clinical personnel and are **never** auto-prescribed from AI outputs.
 
 ---
 
@@ -20,7 +21,8 @@ graph LR
     end
 
     subgraph Backend [FastAPI Server]
-        WS[WebSocket /ws/device] <--> ESP32
+        HTTP[USB serial bridge on laptop] <--> ESP32
+        HTTP[POST /api/v1/devices/{id}/capture] <-- localhost
         API[REST API /api/v1]
         QG[Optical Quality Gate]
         AI[AI Screening Engine]
@@ -28,31 +30,30 @@ graph LR
     end
 
     subgraph Frontend [React Clinical UI]
-        DASH[Clinical Dashboard] <--> API
-        CAP[Capture / Upload] <--> API
-        REP[Printable Reports] <--> API
+        DASH[1. Dashboard] <--> API
+        PAT[2. Patients Directory] <--> API
+        SCR[3. Guided Screening Flow] <--> API
+        REC[4. Records: History, Reports, Reminders] <--> API
+        GEAR[Gear Menu: Device, Status, Model Info, Settings, About] <--> API
     end
 ```
 
 The system is strictly decoupled:
-- **Firmware Layer**: Compiles with PlatformIO (`pio run -e esp32cam` verified). Implements device protocol v1.0 over WebSocket client transport. *(Firmware execution on physical hardware = NOT TESTED pending kit arrival)*.
+- **Firmware Layer**: The Arduino sketch in `hardware/esp32_cam_firmware/` sends heartbeats and CRC-checked image frames over USB serial. Physical ESP32-CAM operation is **hardware-untested**.
 - **Simulator Layer**: Provides a fully functional `SimulatedDevice` that responds identically to protocol v1.0 commands for seamless local development.
 - **Quality Gate**: Assesses focus (Laplacian variance), luminance (over/underexposure), and dimensions before inference. Rejects unsuitable images with explicit feedback instead of forcing unreliable predictions.
-- **AI Inference Engine**: Supports deterministic `MockScreeningModel` (default, tagged `DEMO / MOCK`) and `RealScreeningModel` with safe abstention fallback when weights are absent.
-- **Frontend Dashboard**: Responsive, accessible (WCAG AA) light-theme interface with zero hardcoded colors, built from CSS custom properties.
+- **AI Inference Engine**: Supports both deterministic `mock` heuristics and real `TorchScript` EfficientNet-B0 inference on CPU. Configured via `MODEL_BACKEND=mock|real`.
+- **Frontend Dashboard**: Streamlined 4-section clinical UI with header gear menu, light theme, accessible empty/loading/error states.
 
 ---
 
-## Features
+## Clinical Workflow & Simplified Navigation
 
-- **Patient Management**: Register patients, auto-generate sequential identifiers (`PAT-001`), search by name/code, inspect screening history.
-- **Dual Capture Pipeline**: Trigger physical/virtual ESP32-CAM hardware capture or upload external JPEG/PNG image files.
-- **Optical Quality Verification**: Automatic rejection of blurry, underexposed, or high-glare captures.
-- **Transparent AI Findings**: Class prediction, confidence score gauge, model version tracking, and mandatory disclaimers.
-- **Longitudinal History & Compare**: Side-by-side screening comparison to evaluate lesion progression over time.
-- **Printable Clinical Reports**: Structured "AI Health Screening Report" layout with dedicated CSS print styles.
-- **Supervised Medicine Reminders**: Schedule and track prescriptions with Active and Deactivated states.
-- **Real-Time Device Telemetry**: Live heartbeat, camera status, flash state, and OLED display synchronization.
+1. **Dashboard** (`/`): Summary metrics cards (Patients, Screenings Today/Week, Pending Results, Reminders), Quick Actions (New Patient, Start Screening) with live Patient Search, Reminders Panel, and Safety/Notice alerts (Mock AI badge when active).
+2. **Patients** (`/patients`): Search, enroll new patients, and inspect patient records with Overview, Screenings, and Reminders tabs.
+3. **Screening** (`/screening/new`): Single unified guided workflow: Select Patient → Choose Capture Source (Upload / Device / Simulation) → AI Analysis → Inspection Findings (`/screening/:id`).
+4. **Records** (`/records`): Comprehensive archives tabbed across **Screening History**, **Clinical Reports**, and **Prescription Reminders**.
+5. **System Menu** (Header `⚙`): Direct access to Device Transport Settings (`/devices`), Live Telemetry (`/devices/live`), AI Model Information (`/model`), Settings (`/settings`), and System About (`/about`). Legacy routes automatically redirect to their canonical equivalents.
 
 ---
 
@@ -60,8 +61,9 @@ The system is strictly decoupled:
 
 - **Firmware**: C++ (Arduino framework on Espressif32, PlatformIO), WebSocketsClient, ArduinoJson, Adafruit SSD1306.
 - **Backend**: Python 3.11+, FastAPI, Uvicorn, SQLAlchemy, Pydantic v2, Pillow, WebSockets.
+- **USB Bridge**: Python auto-detecting, reconnecting 115200-baud serial bridge (`pyserial`, `requests`).
 - **Frontend**: React 18, TypeScript, Vite, React Router 6, Vitest, Testing Library.
-- **Testing**: pytest (52 passed), vitest (6 passed).
+- **Testing**: pytest and Vitest; run the commands below for current results.
 
 ---
 
@@ -70,12 +72,12 @@ The system is strictly decoupled:
 | Component | Role | Interface / Connection |
 |-----------|------|------------------------|
 | **ESP32-CAM** (AI-Thinker) | Central controller & image capture | Wi-Fi 802.11 b/g/n, 4MB PSRAM |
-| **0.96" SSD1306 OLED** | Device status text display (no patient data) | I2C: SDA=GPIO14, SCL=GPIO15 |
+| **0.96" SSD1306 OLED** | Device status text display (no patient data) | I2C: SDA=GPIO15, SCL=GPIO14 |
 | **Push Button** | Local screening trigger | GPIO13 to GND (with software debounce) |
-| **White LED** | Lesion illumination strobe | GPIO4 (onboard flash or discrete) |
+| **White LED** | Capture illumination | External LED with 220 Ω from GPIO2 to GND; onboard GPIO4 flash LED unused |
 | **Resistors** | Pull-up & current limiting | 10 kΩ (button), 220 Ω (LED series) |
-| **Power Supply** | Main power delivery | 5V 2A DC supply (avoids brownouts) |
-| **FTDI Adapter** | Serial flashing & debugging | TX/RX crossed, 3.3V logic level |
+| **Power Supply** | Main power delivery | FT232RL 5V output only; verify it can supply camera current peaks |
+| **FT232RL Adapter** | Power, flashing, and data | 5V jumper; TX/RX crossed; 3.3V UART logic |
 
 ---
 
@@ -145,6 +147,28 @@ npm run dev
 - **Frontend Application**: `http://localhost:5173`
 - **Interactive API Documentation (Swagger)**: `http://localhost:8000/docs`
 
+### USB serial capture
+
+For beginner Arduino IDE installation, wiring, and first flash instructions,
+follow the [hardware setup guide](docs/hardware-setup.md). Flash
+`hardware/esp32_cam_firmware/esp32_cam_firmware.ino` once. After that, connect
+the FT232RL adapter and run the backend, bridge, and frontend as described in
+the guide. The bridge automatically detects/reconnects to an FTDI port at
+115200 baud:
+
+```powershell
+python -m pip install -r scripts\requirements-bridge.txt
+python scripts\serial_bridge.py --patient-id 1
+```
+
+The patient ID must already exist in the backend. Use `--port COM5` to select a
+specific port or `--backend-url` to change the local API address. Bridge
+configuration can also be supplied through CLI flags or environment variables
+(`SERIAL_PORT`, `SERIAL_BAUD`, `BACKEND_URL`, `PATIENT_ID`, `DEVICE_TOKEN`).
+The line messages and JPEG frame layout are documented in
+[the serial protocol guide](docs/serial-protocol.md). The real board, adapter,
+power wiring, camera, button, LED, and OLED are **hardware-untested**.
+
 ---
 
 ## Environment Variables Configuration
@@ -154,13 +178,19 @@ Configured in `.env` (derived from `.env.example`):
 | Variable | Default | Purpose |
 |----------|---------|---------|
 | `APP_ENV` | `development` | Environment mode (`development`, `production`) |
-| `DEVICE_MODE` | `virtual` | Device backend (`virtual` for simulator, `real` for hardware) |
-| `DEVICE_TOKEN` | `dev_device_token_secret` | Shared secret token for WebSocket authentication |
-| `AI_MODE` | `mock` | Screening engine mode (`mock` or `real`) |
-| `SCREENING_ABSTAIN_THRESHOLD`| `0.70` | Confidence cutoff below which model abstains |
-| `SCREENING_MODEL_PATH` | `ai/weights/best_model.pt` | Path to PyTorch model checkpoint |
+| `DEVICE_MODE` | `simulation` | Device backend (`simulation` or `real`) |
+| `DEVICE_TRANSPORT` | `simulated` | Reported/default upload transport (`simulated`, `wifi`, or `usb`) |
+| `DEVICE_TOKEN` | empty in `.env.example` | Optional shared token for device connections/uploads |
+| `MODEL_BACKEND` | `real` | Screening backend (`mock` or `real`) |
 | `DATABASE_URL` | `sqlite:///./data/app.db` | SQLAlchemy database connection URI |
 | `MAX_UPLOAD_BYTES` | `10485760` | Maximum file size allowed for image uploads (10 MB) |
+Real model metadata is available at `GET /api/model/info`; see
+[the skin-model documentation](docs/ai.md) for the supplied evaluation and
+limitations. The model is screening support only, not a diagnosis.
+
+`POST /api/device/upload` accepts multipart `patient_id`, `file`, `source`,
+`device_id`, and optional `screening_id`. `source` is `wifi`, `usb`, or
+`simulated`; images must be decodable JPEG/PNG no larger than 10 MiB.
 
 ---
 
@@ -169,39 +199,42 @@ Configured in `.env` (derived from `.env.example`):
 ### Backend Test Suite (Pytest)
 ```bash
 $env:PYTHONPATH="."
-pytest tests -v
+pytest tests -q
 ```
-*Current result: 52 passed, 1 skipped.*
+Latest verified result: **88 passed**.
 
 ### Frontend Test Suite (Vitest)
 ```bash
 cd frontend
-npm test
+npm run test
 ```
-*Current result: 6 passed, 0 failed.*
+Latest verified result: **13 passed**.
 
 ### Firmware Compilation Check (PlatformIO)
 ```bash
 cd hardware/firmware
 pio run -e esp32cam
 ```
-*Current result: SUCCESS (firmware.bin created, RAM 9.7%, Flash 21.3%).*
+Latest verified result: **build succeeded**. Compilation does not verify real
+Wi-Fi, USB serial, camera, button, or OLED behavior.
 
 ---
 
 ## Documentation Index
 
+- [Comprehensive Code Audit (Phase 0)](docs/AUDIT.md)
+- [Project Status & Verification Matrix](docs/PROJECT_STATUS.md)
+- [Manual Hardware & Clinical Testing Checklist](docs/MANUAL_TEST.md)
+- [Hardware Connections & Wiring Reference](HARDWARE_CONNECTIONS.md)
 - [Architecture Specification](docs/architecture.md)
 - [REST & WebSocket API Reference](docs/api.md)
 - [AI Engine & Custom Model Drop-in Guide](docs/ai.md)
 - [Hardware BOM & Specification](docs/hardware.md)
-- [Staged Hardware Bring-up Guide (Sketches 01–08)](docs/hardware-bringup.md)
-- [Wiring & Schematic Guide](docs/wiring.md)
+- [Wiring & Interconnection Guide](docs/wiring.md)
 - [Device Communication Protocol v1.0](docs/protocol.md)
 - [Troubleshooting & Debugging Guide](docs/troubleshooting.md)
 - [Clinical Image Capture Protocol Guide](docs/image-capture-guide.md)
 - [Research Framework & Experiment Templates](docs/research.md)
-- [Audited Verification Status](docs/verification-status.md)
 - [Privacy & Security Governance](docs/privacy.md)
 
 ---
@@ -210,11 +243,11 @@ pio run -e esp32cam
 
 | Area | Status | Notes |
 |------|--------|-------|
-| Backend API & Logic | VERIFIED | 52 passing pytest tests |
+| Backend API & Logic | VERIFIED | 88 passing pytest tests |
 | Simulator & Transport | VERIFIED | Protocol v1.0 contract verified |
-| Frontend Application | VERIFIED | 6 passing Vitest tests + production build verified |
-| Firmware Code & Compilation | COMPILED | `pio run -e esp32cam` succeeds |
-| Physical Hardware Capture | NOT TESTED | Pending physical ESP32-CAM delivery |
+| Frontend Application | VERIFIED | 13 passing Vitest tests + TypeScript check and production build verified |
+| Firmware Code & Compilation | COMPILED | `pio run -e esp32cam` succeeds for `esp32cam` |
+| Physical Hardware Capture | NOT TESTED | Requires board-level Wi-Fi and USB serial bring-up |
 | Custom Model Weights | NOT TESTED | Requires user's training dataset |
 | Docker Containerization | NOT TESTED | Host system lacks Docker engine |
 

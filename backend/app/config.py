@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Literal
 
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -16,18 +18,19 @@ class Settings(BaseSettings):
     auth_issuer: str = "ai-health-screening-device"
     database_url: str = "sqlite:///./data/app.db"
     device_mode: str = "simulation"
+    device_transport: Literal["wifi", "usb", "simulated"] = "simulated"
     device_id: str = "DEVICE_001"
     protocol_version: str = "1.0"
     device_token: str = ""  # set in env for device auth on /ws/device
-    ai_mode: str = "mock"
+    model_backend: Literal["mock", "real"] = Field(
+        default="real",
+        validation_alias=AliasChoices("MODEL_BACKEND", "AI_MODE"),
+    )
 
-    # Real skin-lesion model (used only when ai_mode == "real").
-    # Point screening_model_path at a checkpoint produced by scripts/train_skin_model.py.
+    # Legacy RealScreeningModel settings remain for backwards-compatible imports.
     screening_model_path: str = "./ai/weights/skin_model.pt"
     screening_model_arch: str = "efficientnet_b0"
-    # Comma-separated class names in the exact order the model was trained on.
     screening_class_names: str = "akiec,bcc,bkl,df,mel,nv,vasc"
-    # Which of those classes should be treated as "refer / suspicious".
     screening_suspicious_labels: str = "mel,bcc,akiec"
     screening_abstain_threshold: float = 0.55
     screening_tta: bool = False
@@ -36,7 +39,7 @@ class Settings(BaseSettings):
     simulator_port: int = 8090
     upload_dir: str = "./data/uploads"
     max_upload_bytes: int = 10 * 1024 * 1024
-    cors_origins: str = "*"
+    cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
     serial_port: str = "AUTO"
     log_level: str = "INFO"
 
@@ -47,12 +50,21 @@ class Settings(BaseSettings):
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
 
     @property
+    def ai_mode(self) -> str:
+        """Compatibility for existing clients; MODEL_BACKEND is canonical."""
+        return self.model_backend
+
+    @property
     def screening_class_list(self) -> list[str]:
-        return [c.strip() for c in self.screening_class_names.split(",") if c.strip()]
+        return [name.strip() for name in self.screening_class_names.split(",") if name.strip()]
 
     @property
     def screening_suspicious_list(self) -> list[str]:
-        return [c.strip() for c in self.screening_suspicious_labels.split(",") if c.strip()]
+        return [
+            name.strip()
+            for name in self.screening_suspicious_labels.split(",")
+            if name.strip()
+        ]
 
     def ensure_dirs(self) -> None:
         Path("data").mkdir(parents=True, exist_ok=True)
